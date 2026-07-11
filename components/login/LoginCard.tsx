@@ -53,20 +53,57 @@ export default function LoginCard({ onSubmit, isLoading = false }: LoginCardProp
         >
             {/* ── LEFT – Illustration ────────────────────────────────── */}
             <div className="
-                order-1 md:order-none
-                w-full md:w-[55%]
+                hidden
+                md:flex
+
+                md:w-[45%]
+                lg:w-[55%]
+
                 bg-white
-                flex items-center justify-center
-                p-10 md:p-14
-                min-h-[260px] md:min-h-[700px]
+                items-center
+                justify-center
+
+                p-8
+                lg:p-14
+
+                transition-all
+                duration-500
+                ease-in-out
             ">
-                <div className="relative w-full h-full min-h-[220px] flex items-center justify-center ">
+                <div className="
+                    relative
+
+                    w-full
+                    h-full
+
+                    md:min-h-[480px]
+                    lg:min-h-[580px]
+
+                    overflow-hidden
+                    rounded-3xl
+
+                    transition-all
+                    duration-500
+                    ease-in-out
+                ">
                     {image.map((img, index) => (
-                        <img
-                            key={index}
+                        <Image
                             src={img}
                             alt="Login illustration"
-                            className={`absolute rounded-xl max-w-full max-h-[580px] w-auto h-auto object-contain duration-1000 ease-in-out ${index === currentIndex ? "opacity-100" : "opacity-0"}`}
+                            fill
+                            className={`
+                                object-cover
+                                rounded-xl
+                                transition-opacity
+                                duration-700
+                                ease-in-out
+                                ${
+                                    index === currentIndex
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                }
+                            `}
+                            priority
                         />
                     ))}
                 </div>
