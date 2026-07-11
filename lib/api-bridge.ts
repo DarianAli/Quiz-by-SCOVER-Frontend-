@@ -1,69 +1,127 @@
-// utils/apiBridge.ts
-import axiosInstance from "@/utils/axiosInstance";
-import { handleApiError } from "@/utils/handleApiError";
+import axios from "axios";
+import type { AxiosError } from "axios";
+import { BASE_API_URL } from "@/global";
 
-const buildHeaders = (
+const axiosInstance = axios.create({
+    baseURL: BASE_API_URL
+})
+
+export const get = async (
+    url: string,
     token?: string,
-    data?: string | FormData | Record<string, any>,
-    customHeaders?: Record<string, string>
-) => ({
-    ...(token && { Authorization: `Bearer ${token}` }),
-    ...(data !== undefined && !(data instanceof FormData) && {
-        "Content-Type": "application/json",
-    }),
-    ...customHeaders,
-});
-
-export const get = async (url: string, token?: string, customHeaders?: Record<string, string>) => {
+    customHeaders?: any
+) => {
     try {
         const result = await axiosInstance.get(url, {
-            headers: buildHeaders(token, undefined, customHeaders),
-        });
-        return { status: true, data: result.data };
-    } catch (error) {
-        return handleApiError(error, `GET ${url}`);
-    }
-};
+            headers: {
+                Authorization: token ? `Bearer ${token}` : "",
+                ...customHeaders 
+            }
+        })
 
-export const post = async (
-    url: string,
-    data?: string | FormData | Record<string, any>,
-    token?: string,
-    customHeaders?: Record<string, string>
-) => {
-    try {
-        const result = await axiosInstance.post(url, data, {
-            headers: buildHeaders(token, data, customHeaders),
-        });
-        return { status: true, data: result.data };
-    } catch (error) {
-        return handleApiError(error, `POST ${url}`);
+        return result
+    } catch (error: any) {
+        console.log("API ERROR:", error.message)
+        return {
+            data: {
+                message: error.message
+            }
+        }
     }
-};
+}
 
-export const put = async (
-    url: string,
-    data?: string | FormData | Record<string, any>,
-    token?: string,
-    customHeaders?: Record<string, string>
-) => {
+export const post = async (url: string, data: any, token?: string) => {
     try {
-        const result = await axiosInstance.put(url, data, {
-            headers: buildHeaders(token, data, customHeaders),
-        });
-        return { status: true, data: result.data };
-    } catch (error) {
-        return handleApiError(error, `PUT ${url}`);
-    }
-};
+        const headers: any = {}
 
-export const drop = async (url: string, token?: string, customHeaders?: Record<string, string>) => {
-    try {
-        const result = await axiosInstance.delete(url, {
-            headers: buildHeaders(token, undefined, customHeaders),
-        });
-        return { status: true, data: result.data };
+        if (token) {
+            headers.Authorization = `Bearer ${token}`
+        }
+
+        const result = await axiosInstance.post(url, data, { headers })
+
+        return {
+            status: true,
+            data: result.data
+        }
     } catch (error) {
-        return handleApiError(error, `DELETE ${url}`);
+        const err = error as AxiosError<any>
+
+        const message =
+            err.response?.data?.message ??
+            err.message ??
+            "Something went wrong"
+
+        console.log("API ERROR:", message)
+
+        throw {
+            response: {
+                data: { message }
+            }
+        }
     }
-};
+}
+
+export const put = async (url: string, data: any, token?: string) => {
+    try {
+        const headers: any = {}
+
+        if (token) {
+            headers.Authorization = `Bearer ${token}`
+        }
+
+        const result = await axiosInstance.put(url, data, { headers })
+
+        return {
+            status: true,
+            data: result.data
+        }
+    } catch (error) {
+        const err = error as AxiosError<any>
+
+        const message =
+            err.response?.data?.message ??
+            err.message ??
+            "Something went wrong"
+
+        console.log("API ERROR:", message)
+
+        throw {
+            response: {
+                data: { message }
+            }
+        }
+    }
+}
+
+export const drop = async (url: string, token: string) => {
+    try {
+        let result = await axiosInstance.delete(url, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        })
+
+        return{
+            status: true,
+            data: result.data
+        }
+    } catch (error) {
+        const err = error as AxiosError<any>
+
+        const message =
+            err.response?.data?.message ??
+            err.message ??
+            "Something went wrong"
+
+        console.log("API ERROR:", message)
+
+        throw {
+            response: {
+                data: {
+                    message
+                }
+            }
+        }
+    }
+}

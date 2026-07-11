@@ -129,7 +129,7 @@ export const MultiSelect = ({
             <div
                 id={id}
                 onClick={() => setOpen(o => !o)}
-                className={`flex items-center gap-2 cursor-pointer min-h-[42px] ${baseControl} ${open ? "border-indigo-400 ring-2 ring-indigo-400/15" : ""} ${className}`}
+                className={`flex items-center gap-2 cursor-pointer min-h-10.5 ${baseControl} ${open ? "border-indigo-400 ring-2 ring-indigo-400/15" : ""} ${className}`}
             >
                 <div className="flex flex-wrap gap-1.5 flex-1 min-w-0">
                     {selectedOptions.length > 0 ? (
@@ -165,7 +165,7 @@ export const MultiSelect = ({
                                 onClick={() => toggle(opt.value)}
                                 className={`flex items-center gap-3 px-4 py-2.5 text-sm cursor-pointer transition-colors ${selected ? "text-indigo-600" : "text-gray-700"} hover:bg-gray-50`}
                             >
-                                <div className={`w-4 h-4 rounded-[4px] border flex items-center justify-center shrink-0 transition-colors ${selected ? "bg-indigo-500 border-indigo-500" : "border-gray-300 bg-white"}`}>
+                                <div className={`w-4 h-4 rounded-sm border flex items-center justify-center shrink-0 transition-colors ${selected ? "bg-indigo-500 border-indigo-500" : "border-gray-300 bg-white"}`}>
                                     {selected && <CheckIcon />}
                                 </div>
                                 {opt.label}

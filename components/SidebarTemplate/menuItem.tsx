@@ -10,33 +10,39 @@ type Props = {
 };
 
 const MenuItem = ({ icon, label, path, active, collapsed }: Props) => (
-    <Link
-        href={path}
-        title={collapsed ? label : undefined}
-        className={[
-            "flex items-center font-medium rounded-xl transition-all duration-200 group relative",
-            collapsed ? "justify-center p-3" : "gap-3 px-4 py-2.5",
-            active
-                ? "text-primary bg-primary/10"
-                : "text-gray-500 hover:text-primary hover:bg-primary/8",
-        ].join(" ")}
-    >
-        <span className={`text-[18px] shrink-0 ${active ? "text-primary" : "text-gray-400 group-hover:text-primary"} transition-colors`}>
-            {icon}
-        </span>
+    <div className="relative group">
+        {/* Active Indicator positioned absolutely */}
+        {active && (
+            <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-[#0B5C8C] rounded-r-full transition-all duration-300 ${collapsed ? "left-[-4px]" : "left-[-8px]"}`} />
+        )}
+        <Link
+            href={path}
+            title={collapsed ? label : undefined}
+            className={[
+                "flex items-center font-medium rounded-xl transition-all duration-300 ease-in-out relative hover:pl-5",
+                collapsed ? "justify-center p-3 hover:pl-3" : "gap-3 px-4 py-2.5",
+                active
+                    ? "text-[#0B5C8C] bg-[#0B5C8C]/10 shadow-[inset_0_2px_4px_rgba(11,92,140,0.05)]"
+                    : "text-gray-500 hover:text-[#0B5C8C] hover:bg-[#F8FAFC]",
+            ].join(" ")}
+        >
+            <span className={`text-[20px] shrink-0 transition-transform duration-300 ${active ? "text-[#0B5C8C] scale-110" : "text-gray-400 group-hover:text-[#0B5C8C] group-hover:scale-110"}`}>
+                {icon}
+            </span>
 
         {!collapsed && (
             <span className="text-sm truncate">{label}</span>
         )}
 
-        {/* Tooltip saat collapsed */}
-        {collapsed && (
-            <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                {label}
-                <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900" />
-            </div>
-        )}
-    </Link>
+            {/* Tooltip saat collapsed */}
+            {collapsed && (
+                <div className="absolute left-full ml-4 px-3 py-1.5 bg-gray-800 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none z-50 shadow-lg translate-x-2 group-hover:translate-x-0">
+                    {label}
+                    <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-800" />
+                </div>
+            )}
+        </Link>
+    </div>
 );
 
 export default MenuItem;
