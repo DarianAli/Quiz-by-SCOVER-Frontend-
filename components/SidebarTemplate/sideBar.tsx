@@ -11,6 +11,7 @@ import { BASE_API_URL } from "@/global";
 import { IAdmin } from "@/app/types";
 import ScoverLogo from "@/public/images/scover_logo1.png";
 import ProfilePicTest from "@/public/images/profile.jpeg";
+import DashboardHeader from "../dashboard/DashboardHeader";
 
 type MenuType = {
     id: string;
@@ -95,10 +96,10 @@ const Sidebar = ({ children, id, title, menuList }: Props) => {
 
             {/* ── Sidebar ── */}
             <aside className={[
-                "fixed md:sticky top-0 h-screen bg-white border-r border-gray-100",
-                "flex flex-col transition-all duration-300 z-50",
+                "fixed md:sticky top-0 h-screen bg-white border-r border-[#EAEAEA] shadow-[4px_0_24px_rgba(0,0,0,0.02)]",
+                "flex flex-col transition-all duration-300 ease-in-out z-50",
                 collapsed ? "w-[72px]" : "w-64",
-                mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+                mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full md:translate-x-0",
             ].join(" ")}>
 
                 {/* Logo + toggle */}
@@ -132,15 +133,15 @@ const Sidebar = ({ children, id, title, menuList }: Props) => {
                 )}
 
                 {/* Menu */}
-                <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-5">
+                <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-6 custom-scrollbar">
                     {Object.entries(grouped).map(([category, menus]) => (
                         <div key={category}>
                             {!collapsed && (
-                                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-2 px-1">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 px-2">
                                     {CATEGORY_LABEL[category] ?? category}
                                 </p>
                             )}
-                            <div className="flex flex-col gap-0.5">
+                            <div className="flex flex-col gap-1.5">
                                 {menus.map(menu => (
                                     <MenuItem
                                         key={menu.id}
@@ -157,53 +158,34 @@ const Sidebar = ({ children, id, title, menuList }: Props) => {
                 </nav>
 
                 {/* Logout */}
-                <div className="p-3 border-t border-gray-100">
+                <div className="p-4 mt-auto border-t border-[#EAEAEA]">
                     <button
                         onClick={handleLogout}
                         className={[
-                            "flex items-center gap-2.5 w-full rounded-xl py-2.5 text-sm font-medium",
-                            "text-red-500 hover:bg-red-50 transition-colors",
-                            collapsed ? "justify-center px-2" : "px-4",
+                            "flex items-center gap-3 w-full rounded-xl py-3 text-sm font-semibold",
+                            "text-red-600 hover:bg-red-50 hover:text-red-700 transition-all duration-300 active:scale-95 group",
+                            collapsed ? "justify-center px-0" : "px-4",
                         ].join(" ")}
                     >
-                        <LogoutIcon />
+                        <span className="group-hover:-translate-x-0.5 transition-transform duration-300"><LogoutIcon /></span>
                         {!collapsed && <span>Logout</span>}
                     </button>
                 </div>
             </aside>
 
             {/* ── Main ── */}
-            <div className="flex-1 flex flex-col md:h-screen min-w-0">
-
-                {/* Header */}
-                <header className="sticky top-0 z-40 flex justify-between items-center px-5 md:px-8 h-20 bg-white border-b border-gray-100">
-                    <div className="flex items-center gap-3">
-                        <button
-                            className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
-                            onClick={() => setMobileOpen(true)}
-                        >
-                            <HamburgerIcon />
-                        </button>
-                        <h1 className="text-lg md:text-xl font-semibold text-gray-800">{title}</h1>
-                    </div>
-
-                    <Link href="/admin/profile">
-                        <div className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
-                            <img
-                                src={ProfilePicTest.src}
-                                alt="Profile"
-                                className="w-9 h-9 rounded-full object-cover ring-2 ring-gray-100"
-                            />
-                            <div className="hidden md:block leading-tight">
-                                <p className="text-sm font-semibold text-gray-800">{name || "User Name"}</p>
-                                <p className="text-xs text-gray-400">{admin?.role || "Role"}</p>
-                            </div>
-                        </div>
-                    </Link>
-                </header>
+            <div className="flex-1 flex flex-col md:h-screen min-w-0 bg-[#F8FAFC]">
+                
+                {/* Header Extracted */}
+                <DashboardHeader
+                    title={title}
+                    name={name}
+                    role={admin?.role || ""}
+                    onMobileMenuToggle={() => setMobileOpen(true)}
+                />
 
                 {/* Content */}
-                <main className="flex-1 p-5 md:p-8 md:overflow-y-auto">
+                <main className="flex-1 p-5 md:p-8 md:overflow-y-auto w-full max-w-[1920px] mx-auto">
                     {children}
                 </main>
             </div>
@@ -211,7 +193,7 @@ const Sidebar = ({ children, id, title, menuList }: Props) => {
             {/* Mobile overlay */}
             {mobileOpen && (
                 <div
-                    className="fixed inset-0 bg-black/25 z-40 md:hidden backdrop-blur-[1px]"
+                    className="fixed inset-0 bg-[#083E63]/20 z-40 md:hidden backdrop-blur-sm transition-all duration-300"
                     onClick={() => setMobileOpen(false)}
                 />
             )}
