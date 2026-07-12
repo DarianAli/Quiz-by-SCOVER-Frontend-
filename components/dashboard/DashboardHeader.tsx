@@ -1,7 +1,7 @@
 "use client"
 import Link from "next/link";
 import { Search, Menu, Bell } from "lucide-react";
-import ProfilePicTest from "@/public/images/profile.jpeg";
+import ProfilePicTest from "@/public/images/profile.png";
 import { IAdmin } from "@/app/types";
 
 type Props = {

@@ -189,3 +189,33 @@ export interface IOptions {
     questions?: IQuestions
     answers?: IAnswers[]
 }
+
+export interface IStudentLeaderboard {
+    id: string;
+    name: string
+    avatar?: string;
+    point: number;
+    rank: number;
+    isCurrentUser?: boolean;
+}
+
+export type TSubject = {
+    id: string;
+    name: string;
+    teacher: string;
+    totalQuiz: number;
+    progress: number;
+    description: string;
+    color: "blue" | "mint" | "yellow" | "purple" | "pink";
+}
+
+export interface IRecentActivity {
+    id: string;
+    student: string;
+    avatar?: string;
+    subject: string;
+    className: string;
+    duration: number;
+    score: number;
+    completedAt: string;
+}
