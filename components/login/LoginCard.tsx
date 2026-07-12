@@ -88,6 +88,7 @@ export default function LoginCard({ onSubmit, isLoading = false }: LoginCardProp
                 ">
                     {image.map((img, index) => (
                         <Image
+                            key={index}
                             src={img}
                             alt="Login illustration"
                             fill
