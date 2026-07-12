@@ -178,7 +178,7 @@ const RankingCard = ({ student }: { student: IStudentLeaderboard }) => {
       </h4>
       <div className="mt-2 flex items-center justify-center gap-1 bg-[#F8FAFC] px-3 py-1 rounded-full border border-gray-100">
         <span className="text-[#F9C73D] text-xs">✨</span>
-        <span className="font-bold text-xs text-[#0B5C8C]">{student.point.toLocaleString()}</span>
+        <span className="font-bold text-xs text-[#0B5C8C]">{student.point.toLocaleString("id-ID")}</span>
       </div>
     </div>
   );
@@ -221,7 +221,7 @@ const LeaderboardList = ({ students }: { students: IStudentLeaderboard[] }) => {
               </p>
             </div>
             <div className="font-bold text-xs text-[#0B5C8C]">
-              {std.point.toLocaleString()} pts
+              {std.point.toLocaleString("id-ID")} pts
             </div>
           </div>
         ))}
