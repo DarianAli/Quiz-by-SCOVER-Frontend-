@@ -1,0 +1,17 @@
+export const metadata = {
+    title: "Tentor Dashboard | Quiz Scoover"
+}
+
+type propLayout = {
+    children : React.ReactNode
+}
+
+const rootLayout = ({ children }: propLayout) => {
+    return (
+        <div>
+            {children}
+        </div>
+    )
+}
+
+export default rootLayout

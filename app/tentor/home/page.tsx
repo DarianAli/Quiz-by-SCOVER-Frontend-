@@ -16,8 +16,8 @@ import { dummyRecentActivities } from "@/constants/dummy/recentActivity";
 
 export default function TeacherDashboard() {
     const menuList = [
-        { id: "home", icon: <LayoutDashboard />, path: "/teacher/dashboard", label: "Dashboard Home", category: "dashboard" as const },
-        { id: "subjects", icon: <BookOpen />, path: "/teacher/subjects", label: "My Subjects", category: "dashboard" as const },
+        { id: "home", icon: <LayoutDashboard />, path: "/tentor/home", label: "Dashboard Home", category: "dashboard" as const },
+        { id: "subject", icon: <BookOpen />, path: "/tentor/subject", label: "My Subjects", category: "dashboard" as const },
         { id: "students", icon: <Users />, path: "/teacher/students", label: "Student Tracking", category: "communication" as const },
         { id: "chat", icon: <MessageSquare />, path: "/teacher/messages", label: "Forum Diskusi", category: "communication" as const },
         { id: "settings", icon: <Settings />, path: "/teacher/settings", label: "Settings", category: "settings" as const },
@@ -34,6 +34,7 @@ export default function TeacherDashboard() {
                         title="Selamat Datang Kembali, Coach!"
                         subtitle="Pantau perfoma kelas, kelola tugas siswa, dan tinjau kemajuan kurikulum akademik hari ini secara langsung."
                         buttonText="Manage All Subject"
+                        buttonLink = "/tentor/subject"
                     />
                 </section>
 

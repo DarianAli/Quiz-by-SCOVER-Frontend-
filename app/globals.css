@@ -58,3 +58,38 @@ body {
     gap: 12px;
   }
 }
+
+@theme {
+  /* --- CUSTOM COLORS --- */
+  --color-royal-50: #EAF3FF;
+  --color-royal-400: #3B7DDE;
+  --color-royal-500: #1D61D2;
+  --color-royal-600: #174EA6;
+  --color-royal-700: #112B66;
+
+  --color-gold-50: #FFF8E1;
+  --color-gold-300: #FFD95A;
+  --color-gold-400: #F4C430;
+  --color-gold-500: #E9B21F;
+
+  /* --- CUSTOM KEYFRAMES --- */
+  @keyframes fade-slide-up {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+  
+  @keyframes gradient-fade {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  /* --- CUSTOM ANIMATIONS --- */
+  --animate-fade-slide-up: fade-slide-up 320ms ease-out both;
+  --animate-pulse-soft: pulse-soft 1.8s ease-in-out infinite;
+  --animate-gradient-fade: gradient-fade 250ms ease-out both;
+}

@@ -4,17 +4,19 @@ type Props = {
     title?: string;
     subtitle?: string;
     buttonText?: string;
+    buttonLink?: string;
 };
 
 const HeroBanner = ({
     title = "My Learning Journey",
     subtitle = "Track your progress and achieve your goals.",
-    buttonText = "Explore Courses"
+    buttonText = "Explore Courses",
+    buttonLink = "#"
 }: Props) => {
     return (
         <div className="relative w-full rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-300">
             {/* Background Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-r from-[#083E63] to-[#0B5C8C]" />
+            <div className="absolute inset-0 overflow-hidden rounded-3xl bg-gradient-to-br from-[#112B66] via-[#174EA6] to-[#1D61D2] p-6 sm:p-8 md:p-10 animate-fade-slide-up" />
             
             {/* Background Abstract Blob (Optional Extra Polish) */}
             <div className="absolute -top-24 -right-24 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl pointer-events-none" />
