@@ -45,46 +45,30 @@ export default function LoginCard({ onSubmit, isLoading = false }: LoginCardProp
     return (
         <div
             className="
-                w-full max-w-[1200px] min-h-[700px]
-                flex flex-col md:flex-row
-                bg-white rounded-[30px] shadow-[0_24px_80px_rgba(0,0,0,0.18)]
-                overflow-hidden
+            w-full max-w-[1200px] 
+            max-h-[95dvh] 
+            
+            flex 
+            flex-col 
+            md:flex-row 
+            
+            bg-white 
+            
+            rounded-[30px] 
+            
+            shadow-[0_24px_80px_rgba(0,0,0,0.18)] 
+            
+            overflow-hidden 
+            overflow-y-auto 
+            md:overflow-y-visible
             "
         >
             {/* ── LEFT – Illustration ────────────────────────────────── */}
             <div className="
-                hidden
-                md:flex
-
-                md:w-[45%]
-                lg:w-[55%]
-
-                bg-white
-                items-center
-                justify-center
-
-                p-8
-                lg:p-14
-
-                transition-all
-                duration-500
-                ease-in-out
+                hidden md:flex md:w-[45%] lg:w-[55%] bg-white items-stretch justify-center p-8 lg:p-14
             ">
                 <div className="
-                    relative
-
-                    w-full
-                    h-full
-
-                    md:min-h-[480px]
-                    lg:min-h-[580px]
-
-                    overflow-hidden
-                    rounded-3xl
-
-                    transition-all
-                    duration-500
-                    ease-in-out
+                    relative w-full h-full overflow-hidden rounded-3xl
                 ">
                     {image.map((img, index) => (
                         <Image
@@ -112,11 +96,9 @@ export default function LoginCard({ onSubmit, isLoading = false }: LoginCardProp
 
             {/* ── RIGHT – Form ───────────────────────────────────────── */}
             <div className="
-                order-2 md:order-none
-                w-full md:w-[45%]
-                bg-white
-                flex flex-col justify-center
-                px-10 md:px-14 py-14 md:py-16
+                order-2 md:order-none w-full md:w-[45%] bg-white flex flex-col justify-center
+                   px-6 sm:px-10 md:px-14
+                   py-8 sm:py-10 md:py-14
             ">
                 {/* Logo */}
                 <div className="mb-8 flex items-center gap-2">
@@ -131,7 +113,7 @@ export default function LoginCard({ onSubmit, isLoading = false }: LoginCardProp
                 </div>
 
                 {/* Heading */}
-                <h1 className="text-[2.75rem] font-bold text-[#111111] leading-tight mb-1">
+                <h1 className="text-[clamp(1.75rem,3.2vw,2.75rem)] font-bold text-[#111111] leading-tight mb-1">
                     Welcome back!
                 </h1>
 

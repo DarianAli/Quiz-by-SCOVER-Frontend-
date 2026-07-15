@@ -9,7 +9,7 @@ import MenuItem from "./menuItem";
 import { getCookie, removeCookie } from "@/lib/client-cookie";
 import { BASE_API_URL } from "@/global";
 import { IAdmin } from "@/app/types";
-import ScoverLogo from "@/public/images/logo2.png";
+import ScoverLogo from "@/public/images/logo1.jpg";
 import ProfilePicTest from "@/public/images/profile.jpeg";
 import DashboardHeader from "../dashboard/DashboardHeader";
 
