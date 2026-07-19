@@ -3,8 +3,18 @@
 // Ganti isi getQuizzes/getQuizById/addQuiz/updateQuiz dengan fetch ke
 // API begitu backend siap — bentuk objeknya sengaja dibuat identik
 // dengan payload REST yang akan dikembalikan Prisma.
+//
+// CHANGELOG (redesign):
+// - QuestionItem sekarang punya `question_type` — persisten, bukan lagi
+//   di-infer dari isi options. Wajib diisi tiap kali membuat QuestionItem.
+// - QuestionItem juga punya `tag`, `explanation`, `pairs` (opsional) supaya
+//   data yang diisi lewat QuestionEditorLive tidak hilang saat disimpan.
+// - `MatchingPair` dipindah ke sini (dari types/questions.ts) supaya
+//   QuestionItem bisa mereferensikannya tanpa circular import. Tetap
+//   di-re-export dari types/questions.ts supaya import lama tidak rusak.
 
 import type { SubjectThemeKey } from "@/lib/theme/subject-themes"
+import type { QuestionTypeKey } from "@/lib/theme/question-type-themes"
 
 export type Difficulty = "EASY" | "MEDIUM" | "HARD"
 export type QuizStatus = "INCOMPLETED" | "COMPLETED" // draft vs published di level UI
@@ -32,13 +42,23 @@ export interface OptionItem {
   is_correct: boolean
 }
 
+export interface MatchingPair {
+  id: number
+  left: string
+  right: string
+}
+
 export interface QuestionItem {
   idQuestion: number
   question_text: string
   question_image: string
+  question_type: QuestionTypeKey
   difficulty: Difficulty
   poin: number
+  tag?: string
+  explanation?: string
   options: OptionItem[]
+  pairs?: MatchingPair[] // hanya relevan saat question_type === "matching"
 }
 
 export interface QuizItem {
@@ -105,6 +125,7 @@ let quizStore: QuizItem[] = [
         idQuestion: 1001,
         question_text: "Solve for x: x^2 - 5x + 6 = 0",
         question_image: "",
+        question_type: "multiple_choice",
         difficulty: "MEDIUM",
         poin: 10,
         options: [
@@ -117,6 +138,7 @@ let quizStore: QuizItem[] = [
         idQuestion: 1002,
         question_text: "What is the discriminant of x^2 + 4x + 4 = 0?",
         question_image: "",
+        question_type: "multiple_choice",
         difficulty: "EASY",
         poin: 10,
         options: [

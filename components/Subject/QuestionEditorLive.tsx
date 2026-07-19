@@ -1,21 +1,14 @@
 "use client"
 
 import { getQuestionTypeTheme, type QuestionTypeKey } from "@/lib/theme/question-type-themes"
+import { getDefaultChoicesForType, getDefaultPairsForType, type QuestionFormValue, type AnswerChoice } from "@/types/questions"
 import QuestionTypeCard from "./QuestionTypeCard"
-
-export interface AnswerChoice {
-  id: number
-  text: string
-  isCorrect: boolean
-}
-
-export interface QuestionFormValue {
-  type: QuestionTypeKey
-  prompt: string
-  points: number
-  tag: string
-  choices: AnswerChoice[]
-}
+import MultipleChoiceAnswer from "../question-editor/aswer-sections/MultipleChoiceAnswer"
+import TrueFalseAnswer from "../question-editor/aswer-sections/TrueFalseAnswer"
+import ShortAnswerAnswer from "../question-editor/aswer-sections/ShortAnswerAnswer"
+import FillBlankAnswer from "../question-editor/aswer-sections/FillBlankAnswer"
+import EssayAnswer from "../question-editor/aswer-sections/EssayAnswer"
+import MatchingAnswer from "../question-editor/aswer-sections/MatchingAnswer"
 
 interface QuestionEditorLiveProps {
   value: QuestionFormValue
@@ -27,12 +20,16 @@ interface QuestionEditorLiveProps {
   onRemoveChoice: (id: number) => void
   onCancel: () => void
   onSave: () => void
+  /** NEW — optional. Pass this only when editing an existing question (not
+   * when adding a new one) to show a "Delete question" action in the header.
+   * Omit the prop entirely and no delete button renders — existing callers
+   * (Add Question flow) are unaffected. */
+  onDelete?: () => void
+  /** NEW — optional. Overrides the default "Save question" button label,
+   * e.g. "Save changes" when editing. Defaults to "Save question". */
+  saveLabel?: string
 }
 
-/**
- * UI murni, controlled component. Simpan/cancel dan validasi tetap
- * tanggung jawab halaman pemanggil.
- */
 export default function QuestionEditorLive({
   value,
   onChange,
@@ -43,8 +40,111 @@ export default function QuestionEditorLive({
   onRemoveChoice,
   onCancel,
   onSave,
+  onDelete,
+  saveLabel = "Save question",
 }: QuestionEditorLiveProps) {
   const theme = getQuestionTypeTheme(value.type)
+
+  // Ganti tipe soal -> reset choices/pairs ke default tipe baru
+  const handleSelectType = (type: QuestionTypeKey) => {
+    onChange({
+      type,
+      choices: getDefaultChoicesForType(type),
+      pairs: getDefaultPairsForType(type),
+    })
+  }
+
+  const renderAnswerSection = () => {
+    switch (value.type) {
+      case "multiple_choice":
+        return (
+          <MultipleChoiceAnswer
+            choices={value.choices}
+            theme={theme}
+            onAddChoice={onAddChoice}
+            onUpdateChoice={onUpdateChoice}
+            onSetCorrectChoice={onSetCorrectChoice}
+            onRemoveChoice={onRemoveChoice}
+          />
+        )
+      case "true_false":
+        return <TrueFalseAnswer choices={value.choices} theme={theme} onSetCorrectChoice={onSetCorrectChoice} />
+      case "short_answer":
+        return <ShortAnswerAnswer choices={value.choices} onUpdateChoice={onUpdateChoice} />
+      case "fill_blank":
+        return <FillBlankAnswer choices={value.choices} onUpdateChoice={onUpdateChoice} />
+      case "essay":
+        return <EssayAnswer />
+      case "matching":
+        return <MatchingAnswer pairs={value.pairs ?? []} onChange={onChange} />
+      default:
+        return null
+    }
+  }
+
+  const renderPreviewAnswers = () => {
+    switch (value.type) {
+      case "true_false":
+        return (
+          <div className="grid grid-cols-2 gap-2">
+            {["True", "False"].map((label) => (
+              <div
+                key={label}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 text-center font-medium"
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+        )
+      case "short_answer":
+      case "fill_blank":
+        return (
+          <div className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-300 italic">
+            Type your answer…
+          </div>
+        )
+      case "essay":
+        return (
+          <div className="rounded-xl border border-slate-200 px-3 py-8 text-sm text-slate-300 italic">
+            Write your answer…
+          </div>
+        )
+      case "matching":
+        return (
+          <div className="space-y-2">
+            {(value.pairs ?? []).map((pair) => (
+              <div key={pair.id} className="flex items-center gap-2 text-sm text-slate-700">
+                <span className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5">
+                  {pair.left || <span className="text-slate-300 italic">Item</span>}
+                </span>
+                <span className="text-slate-300">↔</span>
+                <span className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5">
+                  {pair.right || <span className="text-slate-300 italic">Match</span>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
+      case "multiple_choice":
+      default:
+        return (
+          <div className="space-y-2">
+            {value.choices.map((choice, i) => (
+              <div
+                key={choice.id}
+                className="flex items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
+              >
+                <span className="w-5 h-5 rounded-full border border-slate-300 text-[11px] flex items-center justify-center flex-shrink-0">
+                  {String.fromCharCode(65 + i)}
+                </span>
+                {choice.text || <span className="text-slate-300 italic">Choice {i + 1}</span>}
+              </div>
+            ))}
+          </div>
+        )
+    }
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-8">
@@ -53,6 +153,11 @@ export default function QuestionEditorLive({
           ← Console
         </button>
         <div className="flex items-center gap-3">
+          {onDelete && (
+            <button onClick={onDelete} className="text-sm font-medium text-red-500 hover:text-red-600">
+              Delete question
+            </button>
+          )}
           <button onClick={onCancel} className="text-sm text-slate-500 hover:text-slate-700">
             Cancel
           </button>
@@ -60,7 +165,7 @@ export default function QuestionEditorLive({
             onClick={onSave}
             className="h-9 px-4 rounded-xl text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 transition-all duration-150 hover:scale-[1.02]"
           >
-            Save question
+            {saveLabel}
           </button>
         </div>
       </div>
@@ -86,7 +191,7 @@ export default function QuestionEditorLive({
                   typeKey={opt.key}
                   icon={opt.icon}
                   selected={value.type === opt.key}
-                  onSelect={() => onChange({ type: opt.key })}
+                  onSelect={() => handleSelectType(opt.key)}
                 />
               ))}
             </div>
@@ -102,7 +207,7 @@ export default function QuestionEditorLive({
                 className={`w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none outline-none transition-shadow focus:ring-2 focus:ring-offset-0 ${theme.text}`}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Points</label>
                 <input
@@ -111,6 +216,18 @@ export default function QuestionEditorLive({
                   onChange={(e) => onChange({ points: Number(e.target.value) })}
                   className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Difficulty</label>
+                <select
+                  value={value.difficulty}
+                  onChange={(e) => onChange({ difficulty: e.target.value as QuestionFormValue["difficulty"] })}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 text-sm outline-none bg-white"
+                >
+                  <option value="EASY">Easy</option>
+                  <option value="MEDIUM">Medium</option>
+                  <option value="HARD">Hard</option>
+                </select>
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">Tag (optional)</label>
@@ -124,76 +241,29 @@ export default function QuestionEditorLive({
             </div>
           </div>
 
+          <div className="bg-white rounded-2xl ring-1 ring-slate-100 p-5">{renderAnswerSection()}</div>
+
           <div className="bg-white rounded-2xl ring-1 ring-slate-100 p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Answer choices</p>
-              <p className="text-xs text-slate-400">Tap the circle to mark the correct answer</p>
-            </div>
-            <div className="space-y-2">
-              {value.choices.map((choice, i) => (
-                <div
-                  key={choice.id}
-                  className={`flex items-center gap-2.5 rounded-xl px-3 py-2 border transition-all duration-200 ${
-                    choice.isCorrect ? `${theme.selectedBorder} bg-slate-50` : "border-slate-100"
-                  }`}
-                >
-                  <button
-                    onClick={() => onSetCorrectChoice(choice.id)}
-                    aria-label={`Mark answer ${String.fromCharCode(65 + i)} as correct`}
-                    className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all duration-200 ${
-                      choice.isCorrect ? theme.selectedBorder : "border-slate-300"
-                    }`}
-                  >
-                    {choice.isCorrect && (
-                      <span className={`w-2.5 h-2.5 rounded-full ${theme.iconBg} animate-fade-slide-up`} />
-                    )}
-                  </button>
-                  <span className="text-xs font-medium text-slate-400 w-4">{String.fromCharCode(65 + i)}</span>
-                  <input
-                    value={choice.text}
-                    onChange={(e) => onUpdateChoice(choice.id, { text: e.target.value })}
-                    placeholder={`Choice ${i + 1}`}
-                    className="flex-1 text-sm outline-none bg-transparent"
-                  />
-                  <button
-                    onClick={() => onRemoveChoice(choice.id)}
-                    className="text-slate-300 hover:text-red-500 text-sm px-1"
-                    aria-label="Remove choice"
-                  >
-                    🗑
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button onClick={onAddChoice} className="mt-3 text-xs font-medium text-slate-500 hover:text-slate-700">
-              + Add choice
-            </button>
+            <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1.5">
+              💡 Explanation (shown after submission)
+            </label>
+            <textarea
+              value={value.explanation}
+              onChange={(e) => onChange({ explanation: e.target.value })}
+              rows={2}
+              placeholder="Optional — help students understand the answer."
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none outline-none"
+            />
           </div>
         </div>
 
-        {/* Right: student preview + tips */}
         <div className="space-y-5 lg:sticky lg:top-20 self-start">
-          <div
-            key={value.type}
-            className={`bg-white rounded-2xl ring-1 ring-slate-100 p-5 ${theme.previewAccent} animate-gradient-fade`}
-          >
+          <div key={value.type} className={`bg-white rounded-2xl ring-1 ring-slate-100 p-5 ${theme.previewAccent} animate-gradient-fade`}>
             <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">
-              Student preview · {value.points} pts
+              Question · {value.points} pts
             </p>
-            <p className="text-base font-semibold text-slate-900 mb-4">{value.prompt || "Your question will appear here"}</p>
-            <div className="space-y-2">
-              {value.choices.map((choice, i) => (
-                <div
-                  key={choice.id}
-                  className="flex items-center gap-2.5 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700"
-                >
-                  <span className="w-5 h-5 rounded-full border border-slate-300 text-[11px] flex items-center justify-center flex-shrink-0">
-                    {String.fromCharCode(65 + i)}
-                  </span>
-                  {choice.text || <span className="text-slate-300 italic">Choice {i + 1}</span>}
-                </div>
-              ))}
-            </div>
+            <p className="text-base font-semibold text-slate-900 mb-4">{value.prompt || "Your question will preview here"}</p>
+            {renderPreviewAnswers()}
           </div>
 
           <div className="bg-white rounded-2xl ring-1 ring-slate-100 p-5">

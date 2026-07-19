@@ -1,9 +1,24 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import type { Difficulty, OptionItem, QuestionItem, QuizItem } from "@/constants/dummy/subjectData"
+import {
+  ArrowLeft,
+  Eye,
+  Save,
+  Rocket,
+  Plus,
+  FileText,
+  CheckCircle2,
+  Circle,
+  Trash2,
+  ChevronRight,
+} from "lucide-react"
+import type { QuestionItem, QuizItem } from "@/constants/dummy/subjectData"
 import { dummyClasses, dummySubjects, getSubjectThemeKey } from "@/constants/dummy/subjectData"
 import { getSubjectTheme } from "@/lib/theme/subject-themes"
+import { getQuestionTypeTheme } from "@/lib/theme/question-type-themes"
+import { questionItemToFormValue, formValueToQuestionItem, type QuestionFormValue } from "@/types/questions"
+import QuestionFormEditor from "../Subject/QuestionFormEditor"
 
 interface QuizEditorProps {
   quiz: QuizItem
@@ -13,16 +28,23 @@ interface QuizEditorProps {
 
 type SaveState = "idle" | "saving" | "saved"
 
+// UI-only view toggle. Does not touch any existing state, handler, or data flow.
+// "list"     -> Quiz information + question list (reference design)
+// "question" -> question editor, now the same QuestionEditorLive used by Add Question
+type ViewMode = "list" | "question"
+
 export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEditorProps) {
   const [quiz, setQuiz] = useState<QuizItem>(initialQuiz)
   const [activeIndex, setActiveIndex] = useState(0)
   const [saveState, setSaveState] = useState<SaveState>("idle")
+  const [view, setView] = useState<ViewMode>("list")
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const theme = getSubjectTheme(getSubjectThemeKey(quiz.subjectId))
   const className = dummyClasses.find((c) => c.idClass === quiz.classId)?.class_name ?? ""
   const subjectName = dummySubjects.find((s) => s.idSubject === quiz.subjectId)?.subject_name ?? ""
   const activeQuestion = quiz.questions[activeIndex]
+  const totalPoints = quiz.questions.reduce((sum, q) => sum + q.poin, 0)
 
   useEffect(() => {
     setSaveState("saving")
@@ -49,6 +71,7 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
       idQuestion: Date.now(),
       question_text: "",
       question_image: "",
+      question_type: "multiple_choice",
       difficulty: "EASY",
       poin: 10,
       options: [
@@ -65,270 +88,359 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
     setActiveIndex((prev) => Math.max(0, prev - 1))
   }
 
-  return (
-    <div className="min-h-dvh bg-slate-50">
-      {/* Header — badge class/subject sekarang ikut warna theme subject */}
-      <div className="bg-white border-b border-slate-100 px-4 sm:px-6 py-4 flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button onClick={onBack} className="text-slate-400 hover:text-slate-600 text-sm mr-1" aria-label="Back to dashboard">
-              &larr;
-            </button>
-            <h1 className="text-base font-semibold text-slate-900">{quiz.quiz_title || "Untitled quiz"}</h1>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${theme.badge}`}>{className}</span>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${theme.badge}`}>{subjectName}</span>
-          </div>
-          <div className="flex items-center gap-2 mt-1">
-            <DifficultyBadge difficulty={quiz.difficulty} />
-            <Badge tone={quiz.status === "COMPLETED" ? "green" : "amber"}>
-              {quiz.status === "COMPLETED" ? "Published" : "Draft"}
-            </Badge>
-          </div>
-        </div>
-        <AutosaveIndicator state={saveState} />
-      </div>
-
-      {/* Question navigator — soal aktif pakai warna theme subject */}
-      <div className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center gap-3 overflow-x-auto">
-        <span className="text-xs text-slate-500 whitespace-nowrap">
-          Question {quiz.questions.length ? activeIndex + 1 : 0} of {quiz.questions.length}
-        </span>
-        <div className="flex gap-1.5">
-          {quiz.questions.map((q, i) => (
-            <button
-              key={q.idQuestion}
-              onClick={() => setActiveIndex(i)}
-              className={`w-8 h-8 rounded-lg text-xs font-medium flex items-center justify-center border transition-all duration-150 ${
-                i === activeIndex
-                  ? `text-white border-transparent ${theme.button}`
-                  : q.question_text
-                  ? "bg-white text-slate-700 border-slate-200"
-                  : "bg-white text-slate-400 border-dashed border-slate-200"
-              }`}
-              title={q.question_text ? "Answered" : "Not answered yet"}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={addQuestion}
-          className="ml-1 px-3 h-8 rounded-lg text-xs font-medium border border-dashed border-slate-300 text-slate-500 hover:border-slate-400 whitespace-nowrap"
-        >
-          + Add question
-        </button>
-      </div>
-
-      {activeQuestion ? (
-        <div className="grid md:grid-cols-2 gap-4 p-4 md:p-6 max-w-5xl mx-auto">
-          <QuestionEditorPane
-            question={activeQuestion}
-            theme={theme}
-            onChange={updateQuestion}
-            onDelete={() => deleteQuestion(activeIndex)}
-          />
-          <QuestionPreviewPane question={activeQuestion} />
-        </div>
-      ) : (
-        <EmptyState onAdd={addQuestion} theme={theme} />
-      )}
-    </div>
-  )
-}
-
-function QuestionEditorPane({
-  question,
-  theme,
-  onChange,
-  onDelete,
-}: {
-  question: QuestionItem
-  theme: ReturnType<typeof getSubjectTheme>
-  onChange: (q: QuestionItem) => void
-  onDelete: () => void
-}) {
-  const updateOption = (idOption: number, patch: Partial<OptionItem>) => {
-    onChange({
-      ...question,
-      options: question.options.map((o) => (o.idOption === idOption ? { ...o, ...patch } : o)),
-    })
+  // Thin, additive helpers. Reuse the existing onSave prop / setQuiz setter —
+  // no new data fields, no change to the save contract.
+  const handleSaveDraft = () => {
+    onSave(quiz)
+    setSaveState("saved")
   }
 
-  const setCorrect = (idOption: number) => {
-    onChange({
-      ...question,
-      options: question.options.map((o) => ({ ...o, is_correct: o.idOption === idOption })),
-    })
+  const handlePublish = () => {
+    setQuiz((prev) => ({ ...prev, status: "COMPLETED" }))
   }
 
-  const addOption = () => {
-    onChange({
-      ...question,
-      options: [
-        ...question.options,
-        { idOption: Date.now(), option_text: "", option_image: "", is_correct: false },
-      ],
-    })
+  const openQuestion = (index: number) => {
+    setActiveIndex(index)
+    setView("question")
   }
 
-  const removeOption = (idOption: number) => {
-    onChange({ ...question, options: question.options.filter((o) => o.idOption !== idOption) })
+  const backToList = () => setView("list")
+
+  // Bridges the persisted QuestionItem to the QuestionFormValue that
+  // QuestionEditorLive (via QuestionFormEditor) understands, and back again on save.
+  const handleSaveQuestionForm = (value: QuestionFormValue) => {
+    updateQuestion(formValueToQuestionItem(value, activeQuestion?.idQuestion))
+    setView("list")
   }
 
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <select
-          value={question.difficulty}
-          onChange={(e) => onChange({ ...question, difficulty: e.target.value as Difficulty })}
-          className="text-xs font-medium border border-slate-200 rounded-md px-2 py-1 bg-white"
-        >
-          <option value="EASY">Easy</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="HARD">Hard</option>
-        </select>
-        <button onClick={onDelete} className="text-xs text-red-500 hover:text-red-600">
-          Delete question
-        </button>
-      </div>
-
-      <textarea
-        value={question.question_text}
-        onChange={(e) => onChange({ ...question, question_text: e.target.value })}
-        placeholder="Write the question..."
-        rows={3}
-        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-      />
-
-      <ImageUploadSlot
-        imageUrl={question.question_image}
-        onChange={(url) => onChange({ ...question, question_image: url })}
-      />
-
-      <div className="space-y-2">
-        <p className="text-xs font-medium text-slate-500">Answers</p>
-        {question.options.map((opt, i) => (
-          <div
-            key={opt.idOption}
-            className={`flex items-center gap-2 rounded-lg px-1 transition-colors duration-150 ${
-              opt.is_correct ? "bg-slate-50" : ""
-            }`}
-          >
-            <input
-              type="radio"
-              checked={opt.is_correct}
-              onChange={() => setCorrect(opt.idOption)}
-              className="w-4 h-4 accent-emerald-600"
-            />
-            <input
-              value={opt.option_text}
-              onChange={(e) => updateOption(opt.idOption, { option_text: e.target.value })}
-              placeholder={`Answer ${String.fromCharCode(65 + i)}`}
-              className="flex-1 h-9 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-            />
-            {opt.is_correct && (
-              <span className={`text-xs font-medium whitespace-nowrap ${theme.text}`}>Correct</span>
-            )}
-            <button
-              onClick={() => removeOption(opt.idOption)}
-              className="text-slate-300 hover:text-red-500 text-sm px-1"
-              aria-label="Remove answer"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <button onClick={addOption} className="text-xs text-slate-500 hover:text-slate-700">
-          + Add answer
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function ImageUploadSlot({ imageUrl, onChange }: { imageUrl: string; onChange: (url: string) => void }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const handleFile = (file: File) => {
-    const url = URL.createObjectURL(file)
-    onChange(url)
-  }
-
-  if (imageUrl) {
+  if (view === "question" && activeQuestion) {
     return (
-      <div className="relative w-full h-32 rounded-lg overflow-hidden border border-slate-200">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imageUrl} alt="Question illustration" className="w-full h-full object-cover" />
-        <button
-          onClick={() => onChange("")}
-          className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/60 text-white text-xs"
-        >
-          ×
-        </button>
+      <div className="min-h-dvh bg-slate-50 pt-6">
+        <QuestionFormEditor
+          key={activeQuestion.idQuestion}
+          initialValue={questionItemToFormValue(activeQuestion)}
+          onCancel={backToList}
+          onSave={handleSaveQuestionForm}
+          onDelete={() => {
+            deleteQuestion(activeIndex)
+            setView("list")
+          }}
+          saveLabel="Save changes"
+        />
       </div>
     )
   }
 
   return (
-    <div
-      onClick={() => inputRef.current?.click()}
-      onDrop={(e) => {
-        e.preventDefault()
-        const file = e.dataTransfer.files?.[0]
-        if (file) handleFile(file)
-      }}
-      onDragOver={(e) => e.preventDefault()}
-      className="w-full h-24 rounded-lg border border-dashed border-slate-300 flex items-center justify-center text-xs text-slate-400 cursor-pointer hover:border-slate-400"
-    >
-      Drag & drop image, or click to upload
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) handleFile(file)
-        }}
-      />
-    </div>
-  )
-}
+    <div className="min-h-dvh bg-slate-50">
+      {/* ───────────────────────── Top navbar ───────────────────────── */}
+      <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center justify-between flex-wrap gap-3">
+        <button
+          onClick={onBack}
+          className="text-sm font-medium text-slate-500 hover:text-slate-700 flex items-center gap-1.5 transition-colors"
+          aria-label="Back to console"
+        >
+          <ArrowLeft size={16} />
+          Console
+        </button>
 
-function QuestionPreviewPane({ question }: { question: QuestionItem }) {
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 p-5">
-      <p className="text-xs font-medium text-slate-400 mb-3">Student preview</p>
-      {question.question_image && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={question.question_image} alt="" className="w-full h-32 object-cover rounded-lg mb-3" />
-      )}
-      <p className="text-sm text-slate-900 mb-4">{question.question_text || "Question text will appear here"}</p>
-      <div className="space-y-2">
-        {question.options.map((opt, i) => (
-          <div
-            key={opt.idOption}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 text-sm text-slate-700"
+        <div className="flex items-center gap-2 flex-wrap">
+          <AutosaveIndicator state={saveState} />
+          <button
+            onClick={onBack}
+            type="button"
+            className="h-9 px-3.5 rounded-xl text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 transition-colors"
           >
-            <span className="w-5 h-5 rounded-full border border-slate-300 text-xs flex items-center justify-center">
-              {String.fromCharCode(65 + i)}
-            </span>
-            {opt.option_text || <span className="text-slate-300">Empty answer</span>}
+            Cancel
+          </button>
+          <button
+            onClick={() => openQuestion(activeIndex)}
+            type="button"
+            disabled={quiz.questions.length === 0}
+            className="h-9 px-3.5 rounded-xl text-sm font-medium text-slate-600 border border-slate-200 bg-white hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-px"
+          >
+            <Eye size={15} />
+            Preview
+          </button>
+          <button
+            onClick={handleSaveDraft}
+            type="button"
+            className="h-9 px-3.5 rounded-xl text-sm font-medium text-slate-600 border border-slate-200 bg-white hover:border-slate-300 flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-px"
+          >
+            <Save size={15} />
+            Save draft
+          </button>
+          <button
+            onClick={handlePublish}
+            type="button"
+            className={`h-9 px-4 rounded-xl text-sm font-semibold text-white flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-px hover:shadow-md ${theme.button}`}
+          >
+            <Rocket size={15} />
+            Publish changes
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        {/* Eyebrow + heading */}
+        <div className="flex items-center gap-3 mb-6 animate-fade-slide-up">
+          <div className={`w-11 h-11 rounded-2xl ${theme.iconBg} text-white flex items-center justify-center flex-shrink-0`}>
+            <FileText size={18} />
           </div>
-        ))}
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Editing</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-bold text-slate-900">Edit quiz</h1>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${theme.badge}`}>{className}</span>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${theme.badge}`}>{subjectName}</span>
+            </div>
+            <p className="text-sm text-slate-500 mt-0.5">Update details, reorder questions, and publish when ready.</p>
+          </div>
+        </div>
+
+        <div className="grid lg:grid-cols-[1fr_340px] gap-5 items-start">
+          {/* ───────────────────── Left column (70%) ───────────────────── */}
+          <div className="space-y-5 min-w-0">
+            {/* Quiz information card */}
+            <div className="bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                  Quiz title
+                </label>
+                <input
+                  value={quiz.quiz_title}
+                  onChange={(e) => setQuiz((prev) => ({ ...prev, quiz_title: e.target.value }))}
+                  placeholder="Untitled quiz"
+                  aria-label="Quiz title"
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-900 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-slate-900/10"
+                />
+              </div>
+
+              {/*
+                NOTE: QuizItem has no `description` field in the current data model.
+                Not adding one here to avoid changing the data structure — wire this
+                up once the field exists on QuizItem / the API contract.
+              */}
+
+              <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                    Duration (min)
+                  </label>
+                  <input
+                    type="number"
+                    value={quiz.duration}
+                    onChange={(e) => setQuiz((prev) => ({ ...prev, duration: Number(e.target.value) }))}
+                    aria-label="Duration in minutes"
+                    className="w-full h-11 px-3.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-900 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-slate-900/10"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                    Questions
+                  </label>
+                  <div className="h-11 px-3.5 rounded-xl bg-slate-50 border border-slate-100 text-sm font-semibold text-slate-700 flex items-center">
+                    {quiz.questions.length}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
+                    Total points
+                  </label>
+                  <div className="h-11 px-3.5 rounded-xl bg-slate-50 border border-slate-100 text-sm font-semibold text-slate-700 flex items-center">
+                    {totalPoints}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Questions card */}
+            <div className="bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+                <div>
+                  <h2 className="text-base font-semibold text-slate-900">Questions</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Click any question to edit it.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    addQuestion()
+                    setView("question")
+                  }}
+                  type="button"
+                  className={`h-9 px-4 rounded-xl text-sm font-semibold text-white flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-px hover:shadow-md ${theme.button}`}
+                >
+                  <Plus size={15} />
+                  Add question
+                </button>
+              </div>
+
+              {quiz.questions.length > 0 ? (
+                <div className="space-y-2.5">
+                  {quiz.questions.map((q, i) => (
+                    <QuestionListCard
+                      key={q.idQuestion}
+                      question={q}
+                      index={i}
+                      active={i === activeIndex}
+                      onOpen={() => openQuestion(i)}
+                      onDelete={() => deleteQuestion(i)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState
+                  onAdd={() => {
+                    addQuestion()
+                    setView("question")
+                  }}
+                  theme={theme}
+                />
+              )}
+            </div>
+          </div>
+
+          {/* ───────────────────── Right sidebar (30%) ───────────────────── */}
+          <div className="space-y-5 lg:sticky lg:top-20">
+            {/* Quiz summary */}
+            <div className="bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm p-5">
+              <div className="flex items-center gap-2.5 mb-4">
+                <div className={`w-9 h-9 rounded-xl ${theme.iconBg} text-white flex items-center justify-center flex-shrink-0`}>
+                  <FileText size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Quiz ID</p>
+                  <p className="text-sm font-semibold text-slate-900 truncate">{quiz.idQuiz}</p>
+                </div>
+              </div>
+              <dl className="space-y-2.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <dt className="text-slate-500">Questions</dt>
+                  <dd className="font-semibold text-slate-900">{quiz.questions.length}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-slate-500">Total points</dt>
+                  <dd className="font-semibold text-slate-900">{totalPoints}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-slate-500">Duration</dt>
+                  <dd className="font-semibold text-slate-900">{quiz.duration} min</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-slate-500">Status</dt>
+                  <dd>
+                    <Badge tone={quiz.status === "COMPLETED" ? "green" : "amber"}>
+                      {quiz.status === "COMPLETED" ? "Published" : "Draft"}
+                    </Badge>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            {/* Ready checklist — visual only, no logic change */}
+            <div className="bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm p-5">
+              <p className="text-sm font-semibold text-slate-900 mb-3">Ready checklist</p>
+              <ul className="space-y-2">
+                <ChecklistItem done={quiz.quiz_title.trim().length > 0} label="Title filled" />
+                <ChecklistItem done={quiz.questions.length >= 3} label="At least 3 questions added" />
+                <ChecklistItem
+                  done={quiz.questions.length > 0 && quiz.questions.every((q) => q.question_text.trim().length > 0)}
+                  label="Every question has text"
+                />
+                <ChecklistItem done={quiz.status === "COMPLETED"} label="Ready to publish" />
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
+// ─────────────────────────── Question list card ───────────────────────────
+
+function QuestionListCard({
+  question,
+  index,
+  active,
+  onOpen,
+  onDelete,
+}: {
+  question: QuestionItem
+  index: number
+  active: boolean
+  onOpen: () => void
+  onDelete: () => void
+}) {
+  const typeTheme = getQuestionTypeTheme(question.question_type)
+
+  return (
+    <div
+      className={`group relative rounded-xl border transition-all duration-150 hover:-translate-y-px hover:shadow-sm ${
+        active ? "border-slate-300 bg-slate-50" : "border-slate-100 bg-white hover:border-slate-200"
+      }`}
+    >
+      <button
+        onClick={onOpen}
+        type="button"
+        aria-label={`Edit question ${index + 1}`}
+        className="w-full text-left px-4 py-3.5 flex items-center gap-3"
+      >
+        <span
+          className={`w-7 h-7 rounded-full text-white text-xs font-semibold flex items-center justify-center flex-shrink-0 ${typeTheme.iconBg}`}
+        >
+          {index + 1}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md tracking-wide uppercase ${typeTheme.badge}`}>
+              {typeTheme.label}
+            </span>
+            <span className="text-xs text-slate-400">{question.poin} pts</span>
+          </div>
+          <p className="text-sm text-slate-900 truncate">
+            {question.question_text || <span className="text-slate-300 italic">Empty question</span>}
+          </p>
+        </div>
+        <ChevronRight size={16} className="text-slate-300 flex-shrink-0 group-hover:text-slate-400 transition-colors" />
+      </button>
+
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        type="button"
+        aria-label={`Delete question ${index + 1}`}
+        className="absolute top-2.5 right-9 w-7 h-7 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
+  )
+}
+
+function ChecklistItem({ done, label }: { done: boolean; label: string }) {
+  return (
+    <li className="flex items-center gap-2 text-sm">
+      {done ? (
+        <CheckCircle2 size={16} className="text-emerald-500 flex-shrink-0" />
+      ) : (
+        <Circle size={16} className="text-slate-300 flex-shrink-0" />
+      )}
+      <span className={done ? "text-slate-700" : "text-slate-400"}>{label}</span>
+    </li>
+  )
+}
+
 function EmptyState({ onAdd, theme }: { onAdd: () => void; theme: ReturnType<typeof getSubjectTheme> }) {
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <p className="text-base font-medium text-slate-900">Start your first question</p>
-      <p className="text-sm text-slate-500 mt-1 mb-4">This quiz doesn't have any questions yet.</p>
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <p className="text-base font-semibold text-slate-900">Start your first question</p>
+      <p className="text-sm text-slate-500 mt-1 mb-4">This quiz doesn&apos;t have any questions yet.</p>
       <button
         onClick={onAdd}
-        className={`px-4 h-10 rounded-lg text-white text-sm font-medium transition-all duration-150 hover:scale-[1.02] ${theme.button}`}
+        type="button"
+        className={`px-4 h-10 rounded-xl text-white text-sm font-semibold transition-all duration-150 hover:-translate-y-px hover:shadow-md ${theme.button}`}
       >
         Add first question
       </button>
@@ -340,7 +452,9 @@ function AutosaveIndicator({ state }: { state: SaveState }) {
   const label = state === "saving" ? "Saving..." : state === "saved" ? "Saved" : ""
   if (!label) return null
   return (
-    <span className={`text-xs ${state === "saving" ? "text-slate-400" : "text-emerald-600"}`}>{label}</span>
+    <span className={`text-xs font-medium ${state === "saving" ? "text-slate-400" : "text-emerald-600"}`}>
+      {label}
+    </span>
   )
 }
 
@@ -350,18 +464,5 @@ function Badge({ children, tone }: { children: React.ReactNode; tone: "slate" | 
     green: "bg-emerald-50 text-emerald-700",
     amber: "bg-amber-50 text-amber-700",
   }
-  return <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${tones[tone]}`}>{children}</span>
-}
-
-function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
-  const tones: Record<Difficulty, string> = {
-    EASY: "bg-emerald-50 text-emerald-700",
-    MEDIUM: "bg-amber-50 text-amber-700",
-    HARD: "bg-red-50 text-red-700",
-  }
-  return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-md ${tones[difficulty]}`}>
-      {difficulty.charAt(0) + difficulty.slice(1).toLowerCase()}
-    </span>
-  )
+  return <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${tones[tone]}`}>{children}</span>
 }
