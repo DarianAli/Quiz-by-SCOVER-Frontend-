@@ -74,7 +74,7 @@ export default function LoginPage() {
     }
 
     return (
-        <main className="relative min-h-screen w-full flex items-center justify-center px-4 py-10 overflow-hidden">
+        <main className="relative min-h-dvh w-full flex items-center justify-center px-4 py-10 sm:py-10 overflow-hidden">
             <LoginBackground />
             <ToastContainer containerId="toastLogin" />
             <div className="relative z-10 w-full flex items-center justify-center">
