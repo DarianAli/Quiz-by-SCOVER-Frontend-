@@ -13,8 +13,6 @@ import { SubjectPerformance } from "@/components/student-tracking/SubjectPerform
 import { FocusAreaCard } from "@/components/student-tracking/FocusAreaCard"
 import { RecentQuizList } from "@/components/student-tracking/RecentQuizList"
 import { LearningInsight } from "@/components/student-tracking/LearningInsight"
-import { LayoutDashboard, BookOpen, Users, Settings, MessageSquare, ArrowRight } from "lucide-react";
-import SidebarTemplate from "@/components/SidebarTemplate";
 
 
 interface StudentsPageProps {
@@ -31,13 +29,7 @@ interface StudentsPageProps {
  * prop shapes already match the future backend response (see /types/student.ts).
  */
 export default function StudentTrackingPage({ onCancel }: StudentsPageProps) {
-    const menuList = [
-        { id: "home", icon: <LayoutDashboard />, path: "/tentor/home", label: "Dashboard Home", category: "dashboard" as const },
-        { id: "subject", icon: <BookOpen />, path: "/tentor/subject", label: "My Subjects", category: "dashboard" as const },
-        { id: "students", icon: <Users />, path: "/tentor/students", label: "Student Tracking", category: "communication" as const },
-        { id: "chat", icon: <MessageSquare />, path: "/tentor/messages", label: "Forum Diskusi", category: "communication" as const },
-        { id: "settings", icon: <Settings />, path: "/tentor/settings", label: "Settings", category: "settings" as const },
-    ]
+
 
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
     students[0]?.id ?? ""
@@ -49,7 +41,7 @@ export default function StudentTrackingPage({ onCancel }: StudentsPageProps) {
   );
 
   return (
-    <SidebarTemplate id="students" title="Teacher Console" menuList={menuList}>
+    <>
     <div className="min-h-screen bg-slate-50 pb-16">
       <main className="mx-auto flex max-w-[1400px] flex-col gap-6 px-4 pt-6 sm:px-8">
         <StudentHero overview={classOverview} />
@@ -82,6 +74,6 @@ export default function StudentTrackingPage({ onCancel }: StudentsPageProps) {
         )}
       </main>
     </div>
-    </SidebarTemplate>
+    </>
   );
 }

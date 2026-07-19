@@ -1,9 +1,7 @@
 "use client"
 
-import { LayoutDashboard, BookOpen, Users, Settings, MessageSquare, ArrowRight } from "lucide-react";
 import Link from "next/link";
-
-import SidebarTemplate from "@/components/SidebarTemplate";
+import { ArrowRight } from "lucide-react";
 import HeroBanner from "@/components/dashboard/HeroBanner";
 import SectionTitle from "@/components/dashboard/SectionTitle";
 import SubjectCard from "@/components/dashboard/SubjectCard";
@@ -15,16 +13,10 @@ import { dummySubjects } from "@/constants/dummy/subjects";
 import { dummyRecentActivities } from "@/constants/dummy/recentActivity";
 
 export default function TeacherDashboard() {
-    const menuList = [
-        { id: "home", icon: <LayoutDashboard />, path: "/tentor/home", label: "Dashboard Home", category: "dashboard" as const },
-        { id: "subject", icon: <BookOpen />, path: "/tentor/subject", label: "My Subjects", category: "dashboard" as const },
-        { id: "students", icon: <Users />, path: "/tentor/students", label: "Student Tracking", category: "communication" as const },
-        { id: "chat", icon: <MessageSquare />, path: "/tentor/messages", label: "Forum Diskusi", category: "communication" as const },
-        { id: "settings", icon: <Settings />, path: "/tentor/settings", label: "Settings", category: "settings" as const },
-    ]
+
 
     return (
-        <SidebarTemplate id="home" title="Teacher Console" menuList={menuList}>
+        <>
             {/* Dashboard Global Wrapper Container */}
             <div className="space-y-8 pb-12 max-w-full overflow-hidden">
 
@@ -117,6 +109,6 @@ export default function TeacherDashboard() {
                 animation: fadeIn 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
                 }
             `}</style>
-        </SidebarTemplate>
+        </>
     )
 }
