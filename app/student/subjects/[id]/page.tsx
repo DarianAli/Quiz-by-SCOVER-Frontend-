@@ -1,26 +1,62 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { ArrowLeft, Clock, BookOpen, TrendingUp, Filter } from "lucide-react";
 import Link from "next/link";
-import { dummyStudentSubjectDetail as subject } from "@/constants/dummy/student-subjects";
 import { QuizCard } from "@/components/student/subject/quiz-card";
-import { ProgressBar } from "@/components/student/shared/progress-bar";
+import { useParams } from "next/navigation";
+import { get } from "@/lib/api-bridge";
+import { getCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
 import { Difficulty, QuizStudentStatus } from "@/app/types";
 
 type StatusFilter = "ALL" | QuizStudentStatus;
 type DiffFilter   = "ALL" | Difficulty;
 
 export default function SubjectDetailPage() {
+    const params = useParams<{ id: string }>();
+    const id = params.id;
+    
+    const [subject, setSubject] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
     const [diffFilter,   setDiffFilter]   = useState<DiffFilter>("ALL");
 
-    const filtered = useMemo(() => subject.quizzes.filter(q => {
-        const statusOk = statusFilter === "ALL" || q.student_status === statusFilter;
-        const diffOk   = diffFilter   === "ALL" || q.difficulty     === diffFilter;
-        return statusOk && diffOk;
-    }), [statusFilter, diffFilter]);
+    useEffect(() => {
+        const fetchSubjectDetail = async () => {
+            try {
+                const token = getCookie("token") as string;
+                const res = await get(`${BASE_API_URL}/student/subjects/${id}`, token);
+                if (res.data?.status) {
+                    setSubject(res.data.data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch subject detail", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        if (id) fetchSubjectDetail();
+    }, [id]);
+
+    const filtered = useMemo(() => {
+        if (!subject || !subject.quizzes) return [];
+        return subject.quizzes.filter((q: any) => {
+            const statusOk = statusFilter === "ALL" || q.student_status === statusFilter;
+            const diffOk   = diffFilter   === "ALL" || q.difficulty     === diffFilter;
+            return statusOk && diffOk;
+        });
+    }, [subject, statusFilter, diffFilter]);
+
+    if (isLoading) {
+        return <div className="flex items-center justify-center h-96">Memuat Detail Mata Pelajaran...</div>;
+    }
+
+    if (!subject) {
+        return <div className="text-center text-red-500 mt-10">Mata pelajaran tidak ditemukan.</div>;
+    }
 
     return (
         <div className="space-y-8 pb-12">
@@ -53,10 +89,10 @@ export default function SubjectDetailPage() {
                                 <BookOpen size={13} /> {subject.total_quiz} Kuis
                             </div>
                             <div className="flex items-center gap-1.5 text-blue-100 text-xs">
-                                <Clock size={13} /> ~{Math.floor(subject.estimated_time / 60)}j {subject.estimated_time % 60}m
+                                <Clock size={13} /> ~{Math.floor((subject.estimated_time || 0) / 60)}j {(subject.estimated_time || 0) % 60}m
                             </div>
                             <div className="flex items-center gap-1.5 text-blue-100 text-xs">
-                                <TrendingUp size={13} /> Avg {subject.average_score} pts
+                                <TrendingUp size={13} /> Avg {subject.average_score || 0} pts
                             </div>
                         </div>
 
@@ -69,7 +105,7 @@ export default function SubjectDetailPage() {
                             <div className="h-2 bg-white/20 rounded-full overflow-hidden">
                                 <motion.div
                                     initial={{ width: 0 }}
-                                    animate={{ width: `${subject.completion_percentage}%` }}
+                                    animate={{ width: `${subject.completion_percentage || 0}%` }}
                                     transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
                                     className="h-full bg-[#F4C430] rounded-full"
                                 />
@@ -80,8 +116,8 @@ export default function SubjectDetailPage() {
                     {/* Right — big score */}
                     <div className="bg-white/10 backdrop-blur-sm rounded-2xl px-6 py-4 text-center border border-white/20">
                         <p className="text-blue-200 text-xs mb-1">Rata-rata Skor</p>
-                        <p className="text-4xl font-black">{subject.average_score}</p>
-                        <p className="text-blue-200 text-xs mt-1">{subject.completion_percentage}% selesai</p>
+                        <p className="text-4xl font-black">{subject.average_score || 0}</p>
+                        <p className="text-blue-200 text-xs mt-1">{subject.completion_percentage || 0}% selesai</p>
                     </div>
                 </div>
             </motion.div>
@@ -130,7 +166,7 @@ export default function SubjectDetailPage() {
                     </button>
                 ))}
 
-                {filtered.length < subject.quizzes.length && (
+                {filtered.length < (subject.quizzes?.length || 0) && (
                     <span className="text-xs text-gray-400 ml-1">{filtered.length} ditampilkan</span>
                 )}
             </motion.div>
@@ -138,8 +174,8 @@ export default function SubjectDetailPage() {
             {/* Quiz Grid */}
             {filtered.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filtered.map((quiz, i) => (
-                        <QuizCard key={quiz.uuid} quiz={quiz} subjectUuid={subject.uuid} index={i} />
+                    {filtered.map((quiz: any, i: number) => (
+                        <QuizCard key={quiz.uuid || quiz.id} quiz={quiz} subjectUuid={subject.uuid} index={i} />
                     ))}
                 </div>
             ) : (

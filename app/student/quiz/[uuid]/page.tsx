@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
     ChevronLeft, ChevronRight, Bookmark, BookmarkCheck,
     BookOpen, Send,
 } from "lucide-react";
-import { dummyQuizDetail as quiz } from "@/constants/dummy/student-quiz";
 import { DifficultyBadge } from "@/components/student/shared/badge";
 import {
     QuizTimer,
@@ -15,26 +14,84 @@ import {
     SubmitModal,
 } from "@/components/student/quiz/quiz-components";
 
+import { get, post } from "@/lib/api-bridge";
+import { getCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
+
 export default function QuizPage() {
     const router   = useRouter();
+    const params = useParams<{ uuid: string }>();
+    const uuid = params.uuid;
+
     const startRef = useRef(new Date());
 
     // State
-    const [currentIndex, setCurrentIndex]       = useState(0);
+    const [quiz, setQuiz] = useState<any>(null);
+    const [attemptId, setAttemptId] = useState<number | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const [currentIndex, setCurrentIndex]        = useState(0);
     const [answers, setAnswers]                  = useState<Record<number, number>>({});
     const [markedReview, setMarkedReview]        = useState<Set<number>>(new Set());
     const [showSubmit, setShowSubmit]            = useState(false);
     const [isSubmitting, setIsSubmitting]        = useState(false);
     const [direction, setDirection]              = useState<"next" | "prev">("next");
 
-    const currentQuestion = quiz.questions[currentIndex];
-    const totalQuestions  = quiz.questions.length;
+    useEffect(() => {
+        const initQuiz = async () => {
+            try {
+                const token = getCookie("token") as string;
+                // 1. Fetch quiz details
+                const quizRes = await get(`${BASE_API_URL}/student/quiz/${uuid}`, token);
+                if (!quizRes.data?.status) {
+                    throw new Error("Failed to load quiz");
+                }
+                const quizData = quizRes.data.data;
+                setQuiz(quizData);
+
+                // 2. Start attempt
+                const attemptRes = await post(`${BASE_API_URL}/quiz/${uuid}/attempt/start`, {}, token);
+                if (attemptRes.data?.status) {
+                    setAttemptId(attemptRes.data.data.idAttempt);
+                    // If resume, load answers
+                    if (attemptRes.data.data.is_resume && attemptRes.data.data.saved_answers) {
+                        setAnswers(attemptRes.data.data.saved_answers);
+                    }
+                } else {
+                    alert(attemptRes.data?.message || "Failed to start attempt");
+                    router.push(`/student/subjects/${quizData.subject?.uuid || ''}`);
+                }
+            } catch (error: any) {
+                console.error("Quiz init error", error);
+                alert(error.response?.data?.message || "Failed to initialize quiz.");
+                router.back();
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        if (uuid) initQuiz();
+    }, [uuid, router]);
+
+    const currentQuestion = quiz?.questions[currentIndex];
+    const totalQuestions  = quiz?.questions.length || 0;
     const answeredCount   = Object.keys(answers).length;
 
     // Select answer (autosave)
-    const handleAnswer = useCallback((questionId: number, optionId: number) => {
+    const handleAnswer = useCallback(async (questionId: number, optionId: number) => {
         setAnswers(prev => ({ ...prev, [questionId]: optionId }));
-    }, []);
+        if (!quiz || !attemptId) return;
+
+        try {
+            const token = getCookie("token") as string;
+            await post(`${BASE_API_URL}/quiz/${quiz.id}/answers`, {
+                questionsId: questionId,
+                optionsId: optionId,
+                attemptId: attemptId
+            }, token);
+        } catch (error) {
+            console.error("Failed to autosave answer", error);
+        }
+    }, [quiz, attemptId]);
 
     // Toggle mark for review
     const toggleMark = useCallback(() => {
@@ -57,15 +114,28 @@ export default function QuizPage() {
 
     // Submit
     const handleSubmit = useCallback(async () => {
+        if (!quiz || !attemptId) return;
         setIsSubmitting(true);
-        // TODO: POST /student/attempt/submit
-        await new Promise(r => setTimeout(r, 1200));
-        router.push(`/student/result/${quiz.uuid}`);
-    }, [router]);
+        try {
+            const token = getCookie("token") as string;
+            const res = await post(`${BASE_API_URL}/quiz/${uuid}/attempt/${attemptId}/submit`, {}, token);
+            if (res.data?.status) {
+                router.push(`/student/result/${uuid}`);
+            } else {
+                alert(res.data?.message || "Failed to submit quiz");
+                setIsSubmitting(false);
+            }
+        } catch (error: any) {
+            console.error("Failed to submit", error);
+            alert(error.response?.data?.message || "Failed to submit quiz");
+            setIsSubmitting(false);
+        }
+    }, [router, quiz, attemptId, uuid]);
 
     const handleTimeExpire = useCallback(() => {
         setShowSubmit(true);
-    }, []);
+        handleSubmit();
+    }, [handleSubmit]);
 
     const variants = {
         enter:  (dir: "next" | "prev") => ({ x: dir === "next" ?  40 : -40, opacity: 0 }),
@@ -73,8 +143,16 @@ export default function QuizPage() {
         exit:   (dir: "next" | "prev") => ({ x: dir === "next" ? -40 :  40, opacity: 0 }),
     };
 
+    if (isLoading) {
+        return <div className="min-h-screen flex items-center justify-center">Memuat Kuis...</div>;
+    }
+
+    if (!quiz) {
+        return <div className="min-h-screen flex items-center justify-center text-red-500">Kuis tidak ditemukan.</div>;
+    }
+
     const isMarked       = markedReview.has(currentIndex);
-    const selectedOption = answers[currentQuestion.idQuestion];
+    const selectedOption = currentQuestion ? answers[currentQuestion.id || currentQuestion.idQuestion] : undefined;
 
     return (
         <div className="min-h-full pb-10">
@@ -84,7 +162,7 @@ export default function QuizPage() {
                 <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-4">
                     {/* Left: subject + title */}
                     <div className="min-w-0">
-                        <p className="text-xs font-semibold text-[#1D61D2] uppercase tracking-wide">{quiz.subject_name}</p>
+                        <p className="text-xs font-semibold text-[#1D61D2] uppercase tracking-wide">{quiz.subject?.subject_name}</p>
                         <h1 className="text-base font-bold text-[#083E63] truncate max-w-[200px] md:max-w-none">{quiz.quiz_title}</h1>
                     </div>
 
@@ -99,12 +177,20 @@ export default function QuizPage() {
                         <DifficultyBadge difficulty={quiz.difficulty} />
                     </div>
 
-                    {/* Right: Timer */}
-                    <QuizTimer
-                        durationMinutes={quiz.duration}
-                        onExpire={handleTimeExpire}
-                        startTime={startRef.current}
-                    />
+                    {/* Right: timer + finish */}
+                    <div className="flex items-center gap-3">
+                        <QuizTimer
+                            durationMinutes={quiz.duration}
+                            startTime={startRef.current}
+                            onExpire={handleTimeExpire}
+                        />
+                        <button
+                            onClick={() => setShowSubmit(true)}
+                            className="hidden sm:flex items-center gap-1.5 bg-[#083E63] hover:bg-[#083E63]/90 text-white px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors"
+                        >
+                            <Send size={14} /> Finish
+                        </button>
+                    </div>
                 </div>
 
                 {/* Progress bar */}
@@ -162,7 +248,7 @@ export default function QuizPage() {
 
                                 {/* Options */}
                                 <div className="px-5 md:px-7 py-5 space-y-3">
-                                    {currentQuestion.options.map((option, oi) => {
+                                    {currentQuestion.options?.map((option: any, oi: number) => {
                                         const isSelected = selectedOption === option.idOption;
                                         const optionLabel = String.fromCharCode(65 + oi); // A, B, C, D
                                         return (
@@ -260,6 +346,7 @@ export default function QuizPage() {
                             markedReview={markedReview}
                             currentIndex={currentIndex}
                             onJump={goTo}
+                            questionIds={quiz.questions.map((q: any) => q.id || q.idQuestion)}
                         />
                         {/* Submit Button */}
                         <button

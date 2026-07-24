@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
     Target, Zap, Trophy, Flame,
@@ -7,8 +8,6 @@ import {
     TrendingUp, Activity,
 } from "lucide-react";
 
-import { dummyStudentDashboard as data } from "@/constants/dummy/student-dashboard";
-import { dummyLeaderboad } from "@/constants/dummy/leaderboard";
 import { timeAgo } from "@/lib/student/format";
 import { StatCard } from "@/components/student/shared/stat-card";
 import { StudentHeroBanner } from "@/components/student/dashboard/hero-banner";
@@ -17,8 +16,11 @@ import { SubjectMastery } from "@/components/student/dashboard/subject-mastery";
 import { RecentQuizList, ContinueLearning } from "@/components/student/dashboard/recent-quiz-list";
 import { LeaderboardSection } from "@/components/dashboard/Leaderboard";
 
+import { get } from "@/lib/api-bridge";
+import { getCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
+
 // ─── Section Wrapper ─────────────────────────────────────────────────────────
-// Matches Tentor's SectionTitle: text-xl font-bold, mb-5, text-[#083E63]
 function Section({ title, subtitle, children, action }: {
     title: string;
     subtitle?: string;
@@ -58,7 +60,7 @@ function OverviewCard({
 }
 
 // ─── Activity badge map ───────────────────────────────────────────────────────
-const ACTION_LABEL = {
+const ACTION_LABEL: Record<string, {text: string, cls: string}> = {
     COMPLETED_QUIZ: { text: "Selesai", cls: "bg-emerald-50 text-emerald-700" },
     STARTED_QUIZ:   { text: "Mulai",   cls: "bg-blue-50 text-blue-700"       },
     REVIEWED_QUIZ:  { text: "Review",  cls: "bg-amber-50 text-amber-700"     },
@@ -66,6 +68,42 @@ const ACTION_LABEL = {
 
 // ─── Dashboard Page ───────────────────────────────────────────────────────────
 export default function StudentDashboard() {
+    const [data, setData] = useState<any>(null);
+    const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchDashboard = async () => {
+            try {
+                const token = getCookie("token") as string;
+                const [dashRes, leadRes] = await Promise.all([
+                    get(`${BASE_API_URL}/student/dashboard`, token),
+                    get(`${BASE_API_URL}/leaderboard`, token)
+                ]);
+                
+                if (dashRes.data?.status) {
+                    setData(dashRes.data.data);
+                }
+                if (leadRes.data?.status) {
+                    setLeaderboardData(leadRes.data.data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch student dashboard", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchDashboard();
+    }, []);
+
+    if (isLoading) {
+        return <div className="flex items-center justify-center h-96">Memuat Dashboard...</div>;
+    }
+
+    if (!data) {
+        return <div className="text-center text-red-500 mt-10">Gagal memuat data dashboard.</div>;
+    }
+
     const {
         student, stats, strongest_subject, weakest_subject,
         recent_quizzes, in_progress_quizzes, subject_mastery,
@@ -89,7 +127,7 @@ export default function StudentDashboard() {
                 title="Top Student Standings"
                 subtitle="Peringkat akumulasi skor berdasarkan kuis yang telah diselesaikan di kelasmu"
             >
-                <LeaderboardSection data={dummyLeaderboad} />
+                <LeaderboardSection data={leaderboardData} />
             </Section>
 
             {/* 3 — Quick Stats Row */}
@@ -107,9 +145,9 @@ export default function StudentDashboard() {
                     />
                     <StatCard
                         label="Weekly Progress"
-                        value={`+${stats.weekly_progress}%`}
-                        icon={<TrendingUp size={20} className="text-emerald-600" />}
-                        iconBg="bg-emerald-50"
+                        value={stats.weekly_progress >= 0 ? `+${stats.weekly_progress}%` : `${stats.weekly_progress}%`}
+                        icon={<TrendingUp size={20} className={stats.weekly_progress >= 0 ? "text-emerald-600" : "text-red-500"} />}
+                        iconBg={stats.weekly_progress >= 0 ? "bg-emerald-50" : "bg-red-50"}
                         description="vs minggu lalu"
                         delay={0.05}
                     />
@@ -182,7 +220,7 @@ export default function StudentDashboard() {
             </Section>
 
             {/* 5 — Continue Learning */}
-            {in_progress_quizzes.length > 0 && (
+            {in_progress_quizzes?.length > 0 && (
                 <Section title="Lanjutkan Belajar" subtitle="Kuis yang belum kamu selesaikan">
                     <ContinueLearning data={in_progress_quizzes} />
                 </Section>
@@ -190,21 +228,21 @@ export default function StudentDashboard() {
 
             {/* 6 — Charts Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-6">
-                <WeeklyChart data={weekly_scores} />
-                <SubjectMastery data={subject_mastery} />
+                <WeeklyChart data={weekly_scores || []} />
+                <SubjectMastery data={subject_mastery || []} />
             </div>
 
             {/* 7 — Recent Quizzes */}
             <Section title="Kuis Terbaru" subtitle="Riwayat pengerjaan quiz dalam waktu dekat">
-                <RecentQuizList data={recent_quizzes} />
+                <RecentQuizList data={recent_quizzes || []} />
             </Section>
 
             {/* 8 — Recent Activity */}
             <Section title="Aktivitas Terkini" subtitle="Log aktivitas belajarmu">
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
                     <div className="divide-y divide-gray-50">
-                        {recent_activities.map((act) => {
-                            const badge = ACTION_LABEL[act.action];
+                        {recent_activities?.map((act: any) => {
+                            const badge = ACTION_LABEL[act.action] || { text: act.action, cls: "bg-gray-50 text-gray-700" };
                             return (
                                 <div key={act.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
                                     <div className={`shrink-0 p-2.5 rounded-xl ${
@@ -232,6 +270,9 @@ export default function StudentDashboard() {
                                 </div>
                             );
                         })}
+                        {recent_activities?.length === 0 && (
+                            <div className="px-5 py-4 text-center text-sm text-gray-500">Belum ada aktivitas terbaru</div>
+                        )}
                     </div>
                 </div>
             </Section>

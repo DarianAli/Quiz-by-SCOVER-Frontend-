@@ -69,6 +69,7 @@ interface QuestionNavProps {
     markedReview: Set<number>;             // 0-based indices
     currentIndex: number;
     onJump: (index: number) => void;
+    questionIds?: number[];
 }
 
 const NAV_STYLES: Record<NavStatus, string> = {
@@ -78,12 +79,12 @@ const NAV_STYLES: Record<NavStatus, string> = {
     NOT_ANSWERED:  "bg-gray-100 text-gray-500 hover:bg-gray-200",
 };
 
-export function QuestionNavigator({ total, answers, markedReview, currentIndex, onJump }: QuestionNavProps) {
+export function QuestionNavigator({ total, answers, markedReview, currentIndex, onJump, questionIds }: QuestionNavProps) {
     function getStatus(index: number): NavStatus {
         if (index === currentIndex) return "CURRENT";
         if (markedReview.has(index)) return "MARKED_REVIEW";
-        // answers keyed by questionId — using index+1 for 1-based questionId mapping in dummy
-        if (Object.prototype.hasOwnProperty.call(answers, index + 1)) return "ANSWERED";
+        const qId = questionIds ? questionIds[index] : null;
+        if (qId && Object.prototype.hasOwnProperty.call(answers, qId)) return "ANSWERED";
         return "NOT_ANSWERED";
     }
 

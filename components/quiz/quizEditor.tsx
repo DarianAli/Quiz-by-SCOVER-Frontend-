@@ -13,38 +13,46 @@ import {
   Trash2,
   ChevronRight,
 } from "lucide-react"
-import type { QuestionItem, QuizItem } from "@/constants/dummy/subjectData"
-import { dummyClasses, dummySubjects, getSubjectThemeKey } from "@/constants/dummy/subjectData"
 import { getSubjectTheme } from "@/lib/theme/subject-themes"
 import { getQuestionTypeTheme } from "@/lib/theme/question-type-themes"
 import { questionItemToFormValue, formValueToQuestionItem, type QuestionFormValue } from "@/types/questions"
 import QuestionFormEditor from "../Subject/QuestionFormEditor"
+import { toast } from "react-toastify"
+import { post } from "@/lib/api-bridge"
+import { getCookie } from "@/lib/client-cookie"
+import { BASE_API_URL } from "@/global"
 
 interface QuizEditorProps {
-  quiz: QuizItem
-  onSave: (quiz: QuizItem) => Promise<void> | void
+  quiz: any
+  onSave: (quiz: any) => Promise<void> | void
   onBack: () => void
 }
 
 type SaveState = "idle" | "saving" | "saved"
 
-// UI-only view toggle. Does not touch any existing state, handler, or data flow.
-// "list"     -> Quiz information + question list (reference design)
-// "question" -> question editor, now the same QuestionEditorLive used by Add Question
 type ViewMode = "list" | "question"
 
+// Helper to deduce a theme from a subject ID if you still need it,
+// or you can just hardcode / pick randomly
+import type { SubjectThemeKey } from "@/lib/theme/subject-themes"
+
+function getSubjectThemeKeyFallback(subjectId: number): SubjectThemeKey {
+  const themes: SubjectThemeKey[] = ["math", "physics", "english", "biology", "history"]
+  return themes[subjectId % themes.length] || "math"
+}
+
 export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEditorProps) {
-  const [quiz, setQuiz] = useState<QuizItem>(initialQuiz)
+  const [quiz, setQuiz] = useState<any>(initialQuiz)
   const [activeIndex, setActiveIndex] = useState(0)
   const [saveState, setSaveState] = useState<SaveState>("idle")
   const [view, setView] = useState<ViewMode>("list")
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const theme = getSubjectTheme(getSubjectThemeKey(quiz.subjectId))
-  const className = dummyClasses.find((c) => c.idClass === quiz.classId)?.class_name ?? ""
-  const subjectName = dummySubjects.find((s) => s.idSubject === quiz.subjectId)?.subject_name ?? ""
-  const activeQuestion = quiz.questions[activeIndex]
-  const totalPoints = quiz.questions.reduce((sum, q) => sum + q.poin, 0)
+  const theme = getSubjectTheme(getSubjectThemeKeyFallback(quiz.subjectId))
+  const className = quiz.class?.class_name ?? "Class"
+  const subjectName = quiz.subject?.subject_name ?? "Subject"
+  const activeQuestion = quiz.questions?.[activeIndex]
+  const totalPoints = quiz.questions?.reduce((sum: number, q: any) => sum + (q.poin || 0), 0) || 0
 
   useEffect(() => {
     setSaveState("saving")
@@ -56,47 +64,44 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [quiz])
 
-  const updateQuestion = (updated: QuestionItem) => {
-    setQuiz((prev) => ({
+  const updateQuestion = (updated: any) => {
+    setQuiz((prev: any) => ({
       ...prev,
-      questions: prev.questions.map((q, i) => (i === activeIndex ? updated : q)),
+      questions: prev.questions.map((q: any, i: number) => (i === activeIndex ? updated : q)),
     }))
   }
 
   const addQuestion = () => {
-    const newQuestion: QuestionItem = {
-      idQuestion: Date.now(),
+    const newQuestion = {
+      id: undefined, // undefined implies new question
       question_text: "",
       question_image: "",
       question_type: "multiple_choice",
-      difficulty: "EASY",
+      difficulty: quiz.difficulty,
       poin: 10,
       options: [
-        { idOption: Date.now() + 1, option_text: "", option_image: "", is_correct: false },
-        { idOption: Date.now() + 2, option_text: "", option_image: "", is_correct: false },
+        { text: "", isCorrect: false },
+        { text: "", isCorrect: false },
       ],
     }
-    setQuiz((prev) => ({ ...prev, questions: [...prev.questions, newQuestion] }))
-    setActiveIndex(quiz.questions.length)
+    setQuiz((prev: any) => ({ ...prev, questions: [...(prev.questions || []), newQuestion] }))
+    setActiveIndex(quiz.questions ? quiz.questions.length : 0)
   }
 
   const deleteQuestion = (index: number) => {
-    setQuiz((prev) => ({ ...prev, questions: prev.questions.filter((_, i) => i !== index) }))
-    setActiveIndex((prev) => Math.max(0, prev - 1))
+    setQuiz((prev: any) => ({ ...prev, questions: prev.questions.filter((_: any, i: number) => i !== index) }))
+    setActiveIndex((prev: number) => Math.max(0, prev - 1))
   }
 
-  // Thin, additive helpers. Reuse the existing onSave prop / setQuiz setter —
-  // no new data fields, no change to the save contract.
   const handleSaveDraft = () => {
     onSave(quiz)
     setSaveState("saved")
   }
 
   const handlePublish = () => {
-    setQuiz((prev) => ({ ...prev, status: "COMPLETED" }))
+    setQuiz((prev: any) => ({ ...prev, status: "PUBLISHED" }))
   }
 
   const openQuestion = (index: number) => {
@@ -106,19 +111,78 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
 
   const backToList = () => setView("list")
 
-  // Bridges the persisted QuestionItem to the QuestionFormValue that
-  // QuestionEditorLive (via QuestionFormEditor) understands, and back again on save.
-  const handleSaveQuestionForm = (value: QuestionFormValue) => {
-    updateQuestion(formValueToQuestionItem(value, activeQuestion?.idQuestion))
-    setView("list")
+  const handleSaveQuestionForm = async (value: QuestionFormValue) => {
+    // Determine if it's a new or existing question by checking if it has an `id`
+    if (!activeQuestion) return
+    const isNew = !activeQuestion.id
+    
+    try {
+      const token = getCookie("token") as string
+      let questionId = activeQuestion.id
+
+      if (isNew) {
+         // Create question
+         const qPayload = {
+            question_text: value.prompt,
+            difficulty: quiz.difficulty,
+            poin: value.points || 10,
+            quizId: quiz.id,
+            discussion: value.explanation
+          }
+          const resQ = await post(`${BASE_API_URL}/question/add`, qPayload, token)
+          if (resQ.data?.status) {
+             questionId = resQ.data.data.id
+             // Create Options
+             if (value.choices && value.choices.length > 0) {
+               const optionPromises = value.choices.map((opt, idx) => {
+                 return post(`${BASE_API_URL}/option/add`, {
+                   option_text: opt.text,
+                   is_correct: String(opt.isCorrect),
+                   order_index: idx,
+                   questionId: questionId
+                 }, token)
+               })
+               await Promise.all(optionPromises)
+             }
+             toast.success("Question created")
+          }
+      } else {
+         // Edit question logic would go here
+         toast.success("Question updated locally (backend update pending)")
+      }
+
+      updateQuestion({
+        ...formValueToQuestionItem(value, activeQuestion.idQuestion || activeQuestion.id),
+        id: questionId
+      })
+      setView("list")
+    } catch(err) {
+      toast.error("Failed to save question")
+    }
   }
 
   if (view === "question" && activeQuestion) {
+    const fallbackQuestionType = activeQuestion.options ? "multiple_choice" : "essay"
+    const parsedInitialValue: QuestionFormValue = {
+        prompt: activeQuestion.question_text || "",
+        points: activeQuestion.poin || 10,
+        explanation: activeQuestion.discussion || "",
+        type: activeQuestion.question_type || fallbackQuestionType,
+        difficulty: activeQuestion.difficulty || "EASY",
+        tag: "", // Default tag
+        choices: activeQuestion.options?.map((o: any) => ({
+            id: o.uuid || o.idOption || o.id,
+            text: o.option_text,
+            isCorrect: typeof o.is_correct === "string" ? o.is_correct === "true" : Boolean(o.is_correct),
+            isEditing: false
+        })) || []
+    }
+
     return (
       <div className="min-h-dvh bg-slate-50 pt-6">
         <QuestionFormEditor
-          key={activeQuestion.idQuestion}
-          initialValue={questionItemToFormValue(activeQuestion)}
+          key={activeQuestion.id || activeIndex}
+          initialValue={parsedInitialValue}
           onCancel={backToList}
           onSave={handleSaveQuestionForm}
           onDelete={() => {
@@ -133,7 +197,6 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
 
   return (
     <div className="min-h-dvh bg-slate-50">
-      {/* ───────────────────────── Top navbar ───────────────────────── */}
       <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center justify-between flex-wrap gap-3">
         <button
           onClick={onBack}
@@ -156,7 +219,7 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
           <button
             onClick={() => openQuestion(activeIndex)}
             type="button"
-            disabled={quiz.questions.length === 0}
+            disabled={quiz.questions?.length === 0}
             className="h-9 px-3.5 rounded-xl text-sm font-medium text-slate-600 border border-slate-200 bg-white hover:border-slate-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-px"
           >
             <Eye size={15} />
@@ -182,7 +245,6 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-        {/* Eyebrow + heading */}
         <div className="flex items-center gap-3 mb-6 animate-fade-slide-up">
           <div className={`w-11 h-11 rounded-2xl ${theme.iconBg} text-white flex items-center justify-center flex-shrink-0`}>
             <FileText size={18} />
@@ -199,9 +261,7 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
         </div>
 
         <div className="grid lg:grid-cols-[1fr_340px] gap-5 items-start">
-          {/* ───────────────────── Left column (70%) ───────────────────── */}
           <div className="space-y-5 min-w-0">
-            {/* Quiz information card */}
             <div className="bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm p-5 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
@@ -209,18 +269,12 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
                 </label>
                 <input
                   value={quiz.quiz_title}
-                  onChange={(e) => setQuiz((prev) => ({ ...prev, quiz_title: e.target.value }))}
+                  onChange={(e) => setQuiz((prev: any) => ({ ...prev, quiz_title: e.target.value }))}
                   placeholder="Untitled quiz"
                   aria-label="Quiz title"
                   className="w-full h-11 px-3.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-900 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-slate-900/10"
                 />
               </div>
-
-              {/*
-                NOTE: QuizItem has no `description` field in the current data model.
-                Not adding one here to avoid changing the data structure — wire this
-                up once the field exists on QuizItem / the API contract.
-              */}
 
               <div className="grid grid-cols-3 gap-3 sm:gap-4">
                 <div>
@@ -230,7 +284,7 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
                   <input
                     type="number"
                     value={quiz.duration}
-                    onChange={(e) => setQuiz((prev) => ({ ...prev, duration: Number(e.target.value) }))}
+                    onChange={(e) => setQuiz((prev: any) => ({ ...prev, duration: Number(e.target.value) }))}
                     aria-label="Duration in minutes"
                     className="w-full h-11 px-3.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-900 outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-slate-900/10"
                   />
@@ -240,7 +294,7 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
                     Questions
                   </label>
                   <div className="h-11 px-3.5 rounded-xl bg-slate-50 border border-slate-100 text-sm font-semibold text-slate-700 flex items-center">
-                    {quiz.questions.length}
+                    {quiz.questions?.length || 0}
                   </div>
                 </div>
                 <div>
@@ -254,7 +308,6 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
               </div>
             </div>
 
-            {/* Questions card */}
             <div className="bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm p-5">
               <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
                 <div>
@@ -274,11 +327,11 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
                 </button>
               </div>
 
-              {quiz.questions.length > 0 ? (
+              {quiz.questions && quiz.questions.length > 0 ? (
                 <div className="space-y-2.5">
-                  {quiz.questions.map((q, i) => (
+                  {quiz.questions.map((q: any, i: number) => (
                     <QuestionListCard
-                      key={q.idQuestion}
+                      key={q.id || i}
                       question={q}
                       index={i}
                       active={i === activeIndex}
@@ -293,15 +346,13 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
                     addQuestion()
                     setView("question")
                   }}
-                  theme={theme}
+                  theme={theme as any}
                 />
               )}
             </div>
           </div>
 
-          {/* ───────────────────── Right sidebar (30%) ───────────────────── */}
           <div className="space-y-5 lg:sticky lg:top-20">
-            {/* Quiz summary */}
             <div className="bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm p-5">
               <div className="flex items-center gap-2.5 mb-4">
                 <div className={`w-9 h-9 rounded-xl ${theme.iconBg} text-white flex items-center justify-center flex-shrink-0`}>
@@ -309,13 +360,13 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Quiz ID</p>
-                  <p className="text-sm font-semibold text-slate-900 truncate">{quiz.idQuiz}</p>
+                  <p className="text-sm font-semibold text-slate-900 truncate">{quiz.uuid || quiz.id}</p>
                 </div>
               </div>
               <dl className="space-y-2.5 text-sm">
                 <div className="flex items-center justify-between">
                   <dt className="text-slate-500">Questions</dt>
-                  <dd className="font-semibold text-slate-900">{quiz.questions.length}</dd>
+                  <dd className="font-semibold text-slate-900">{quiz.questions?.length || 0}</dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-slate-500">Total points</dt>
@@ -328,25 +379,24 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
                 <div className="flex items-center justify-between">
                   <dt className="text-slate-500">Status</dt>
                   <dd>
-                    <Badge tone={quiz.status === "COMPLETED" ? "green" : "amber"}>
-                      {quiz.status === "COMPLETED" ? "Published" : "Draft"}
+                    <Badge tone={quiz.status === "COMPLETED" || quiz.status === "PUBLISHED" ? "green" : "amber"}>
+                      {quiz.status === "COMPLETED" || quiz.status === "PUBLISHED" ? "Published" : "Draft"}
                     </Badge>
                   </dd>
                 </div>
               </dl>
             </div>
 
-            {/* Ready checklist — visual only, no logic change */}
             <div className="bg-white rounded-2xl ring-1 ring-slate-100 shadow-sm p-5">
               <p className="text-sm font-semibold text-slate-900 mb-3">Ready checklist</p>
               <ul className="space-y-2">
-                <ChecklistItem done={quiz.quiz_title.trim().length > 0} label="Title filled" />
-                <ChecklistItem done={quiz.questions.length >= 3} label="At least 3 questions added" />
+                <ChecklistItem done={(quiz.quiz_title || "").trim().length > 0} label="Title filled" />
+                <ChecklistItem done={(quiz.questions?.length || 0) >= 3} label="At least 3 questions added" />
                 <ChecklistItem
-                  done={quiz.questions.length > 0 && quiz.questions.every((q) => q.question_text.trim().length > 0)}
+                  done={(quiz.questions?.length || 0) > 0 && quiz.questions.every((q: any) => (q.question_text || "").trim().length > 0)}
                   label="Every question has text"
                 />
-                <ChecklistItem done={quiz.status === "COMPLETED"} label="Ready to publish" />
+                <ChecklistItem done={quiz.status === "COMPLETED" || quiz.status === "PUBLISHED"} label="Ready to publish" />
               </ul>
             </div>
           </div>
@@ -356,8 +406,6 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
   )
 }
 
-// ─────────────────────────── Question list card ───────────────────────────
-
 function QuestionListCard({
   question,
   index,
@@ -365,13 +413,13 @@ function QuestionListCard({
   onOpen,
   onDelete,
 }: {
-  question: QuestionItem
+  question: any
   index: number
   active: boolean
   onOpen: () => void
   onDelete: () => void
 }) {
-  const typeTheme = getQuestionTypeTheme(question.question_type)
+  const typeTheme = getQuestionTypeTheme(question.question_type || "multiple_choice")
 
   return (
     <div
@@ -395,7 +443,7 @@ function QuestionListCard({
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md tracking-wide uppercase ${typeTheme.badge}`}>
               {typeTheme.label}
             </span>
-            <span className="text-xs text-slate-400">{question.poin} pts</span>
+            <span className="text-xs text-slate-400">{question.poin || 0} pts</span>
           </div>
           <p className="text-sm text-slate-900 truncate">
             {question.question_text || <span className="text-slate-300 italic">Empty question</span>}
@@ -432,7 +480,7 @@ function ChecklistItem({ done, label }: { done: boolean; label: string }) {
   )
 }
 
-function EmptyState({ onAdd, theme }: { onAdd: () => void; theme: ReturnType<typeof getSubjectTheme> }) {
+function EmptyState({ onAdd, theme }: { onAdd: () => void; theme: any }) {
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <p className="text-base font-semibold text-slate-900">Start your first question</p>

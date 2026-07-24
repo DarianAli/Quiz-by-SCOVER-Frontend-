@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { ToastContainer, toast } from "react-toastify";
 import { getCookie, removeCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
 import ScoverLogo from "@/public/images/logo1.jpg";
 import MenuItem from "./menuItem";
 
@@ -101,15 +102,20 @@ export default function Sidebar({
         }
     }, []);
 
-    const handleLogout = useCallback(() => {
+    const handleLogout = useCallback(async () => {
+        try {
+            await fetch(`${BASE_API_URL}/auth/logout`, { method: "POST", credentials: "include" });
+        } catch (error) {
+            console.error("Logout error", error);
+        }
         ["token", "id", "name", "email", "role"].forEach(removeCookie);
         toast.success("Logout berhasil", {
             hideProgressBar: true,
             containerId: "main-sidebar-toast",
             autoClose: 1000,
         });
-        setTimeout(() => router.replace("/login"), 1500);
-    }, [router]);
+        setTimeout(() => window.location.href = "/login", 1500);
+    }, []);
 
     const grouped = menuList.reduce<Record<string, MenuType[]>>((acc, menu) => {
         (acc[menu.category] ??= []).push(menu);

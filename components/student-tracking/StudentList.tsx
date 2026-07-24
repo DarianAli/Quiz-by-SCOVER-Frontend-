@@ -60,6 +60,17 @@ export function StudentList({
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [quickFilter, setQuickFilter] = useState<QuickFilterKey | null>(null);
 
+  const classList = useMemo(() => {
+    const classes = new Map<string, string>();
+    students.forEach((s) => {
+      // If student doesn't have className, fallback to classId
+      classes.set(s.classId, (s as any).className || s.classId);
+    });
+    const list = Array.from(classes.entries()).map(([id, label]) => ({ id, label }));
+    list.unshift({ id: "all", label: "All Classes" });
+    return list;
+  }, [students]);
+
   const filtered = useMemo(() => {
     let result = students;
 
@@ -92,6 +103,7 @@ export function StudentList({
           onSearchChange={setSearch}
           classId={classId}
           onClassChange={setClassId}
+          classList={classList}
           sortKey={sortKey}
           onSortChange={setSortKey}
           quickFilter={quickFilter}

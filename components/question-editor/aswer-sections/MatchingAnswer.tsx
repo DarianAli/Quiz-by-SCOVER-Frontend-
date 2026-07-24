@@ -8,13 +8,13 @@ interface Props {
 }
 
 export default function MatchingAnswer({ pairs, onChange }: Props) {
-  const update = (id: number, patch: Partial<MatchingPair>) =>
+  const update = (id: number | string, patch: Partial<MatchingPair>) =>
     onChange({ pairs: pairs.map((p) => (p.id === id ? { ...p, ...patch } : p)) })
 
   const add = () =>
     onChange({ pairs: [...pairs, { id: Date.now(), left: "", right: "" }] })
 
-  const remove = (id: number) =>
+  const remove = (id: number | string) =>
     onChange({ pairs: pairs.filter((p) => p.id !== id) })
 
   return (

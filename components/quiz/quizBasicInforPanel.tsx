@@ -1,8 +1,11 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { dummyClasses, dummySubjects, dummySubjectClass, type Difficulty, } from "@/constants/dummy/subjectData"
+import { useMemo, useState, useEffect } from "react"
+import { Difficulty } from "@/app/types"
 import QuizCreateForm, { type QuizFormValue } from "../Subject/QuizCreateForm"
+import { get } from "@/lib/api-bridge"
+import { getCookie } from "@/lib/client-cookie"
+import { BASE_API_URL } from "@/global"
 
 interface QuizBasicInfoPanelProps {
   open: boolean
@@ -19,28 +22,62 @@ interface QuizBasicInfoPanelProps {
 }
  
 const durationOptions = [30, 45, 60, 90]
-const difficultyOptions: Difficulty[] = ["EASY", "MEDIUM", "HARD"]
+const difficultyOptions: Difficulty[] = [Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD]
  
 export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBasicInfoPanelProps) {
   const [quizTitle, setQuizTitle] = useState("")
   const [classId, setClassId] = useState<number | "">("")
   const [subjectId, setSubjectId] = useState<number | "">("")
-  const [difficulty, setDifficulty] = useState<Difficulty>("MEDIUM")
+  const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.MEDIUM)
   const [duration, setDuration] = useState(45)
   const [status, setStatus] = useState<"DRAFT" | "PUBLISHED">("DRAFT")
   const [description, setDescription] = useState("")
   const [formValue, setFormValue] = useState<QuizFormValue>()
 
- 
-  // Subject difilter berdasarkan class yang dipilih, lewat relasi subjectClass
+  const [classes, setClasses] = useState<any[]>([])
+  const [subjects, setSubjects] = useState<any[]>([])
+
+  useEffect(() => {
+    if (open) {
+      const fetchData = async () => {
+        try {
+          const token = getCookie("token") as string
+          const [resClass, resSub] = await Promise.all([
+            get(`${BASE_API_URL}/class/all`, token),
+            get(`${BASE_API_URL}/subject/all`, token)
+          ])
+          if (resClass.data?.status) setClasses(resClass.data.data)
+          if (resSub.data?.status) setSubjects(resSub.data.data)
+        } catch (error) {
+          console.error("Failed to fetch classes/subjects", error)
+        }
+      }
+      fetchData()
+    }
+  }, [open])
+
+  // Subject difilter berdasarkan class yang dipilih, lewat relasi classes di dalam subject (kalau ada)
   const availableSubjects = useMemo(() => {
     if (!classId) return []
-    const subjectIds = dummySubjectClass
-      .filter((link) => link.classId === classId)
-      .map((link) => link.subjectId)
-    return dummySubjects.filter((s) => subjectIds.includes(s.idSubject))
-  }, [classId])
+    // Filter subjects that belong to the selected classId. 
+    // The subject API may return classes or subjectClass array inside each subject.
+    return subjects.filter((s) => {
+      // If subject has a classes array, check if any class matches
+      if (s.classes && Array.isArray(s.classes)) {
+        return s.classes.some((c: any) => c.id === classId)
+      }
+      // If subject has subjectClass array
+      if (s.subjectClass && Array.isArray(s.subjectClass)) {
+        return s.subjectClass.some((sc: any) => sc.classId === classId)
+      }
+      // fallback just return all for now if no relation mapping
+      return true
+    })
+  }, [classId, subjects])
  
+  const [retakePolicy, setRetakePolicy] = useState<"ONCE" | "MULTIPLE">("ONCE")
+  const [maxAttempts, setMaxAttempts] = useState(1)
+
   const canContinue = quizTitle.trim().length > 0 && classId !== "" && subjectId !== ""
  
   const handleContinue = () => {
@@ -53,7 +90,9 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
       duration,
       status,
       description,
-    })
+      retake_policy: retakePolicy,
+      max_attempts: maxAttempts
+    } as any) // Type assertion because we need to update QuizDashboardProps too
   }
  
   if (!open) return null
@@ -90,8 +129,8 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
               className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/10"
             >
               <option value="">Select class</option>
-              {dummyClasses.map((c) => (
-                <option key={c.idClass} value={c.idClass}>{c.class_name}</option>
+              {classes.map((c) => (
+                <option key={c.id || c.uuid} value={c.id}>{c.class_name}</option>
               ))}
             </select>
           </Field>
@@ -105,7 +144,7 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
             >
               <option value="">{classId ? "Select subject" : "Select a class first"}</option>
               {availableSubjects.map((s) => (
-                <option key={s.idSubject} value={s.idSubject}>{s.subject_name}</option>
+                <option key={s.id || s.uuid} value={s.id}>{s.subject_name}</option>
               ))}
             </select>
           </Field>
@@ -165,6 +204,35 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
                 </button>
               ))}
             </div>
+          </Field>
+
+          <Field label="Retake Policy">
+            <div className="flex gap-2 mb-2">
+              {(["ONCE", "MULTIPLE"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setRetakePolicy(p)}
+                  className={`flex-1 h-9 rounded-lg text-sm font-medium border transition-colors ${
+                    retakePolicy === p
+                      ? "bg-slate-900 text-white border-slate-900"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {p === "ONCE" ? "Sekali Coba" : "Berkali-kali"}
+                </button>
+              ))}
+            </div>
+            {retakePolicy === "MULTIPLE" && (
+              <input
+                type="number"
+                min={1}
+                value={maxAttempts}
+                onChange={(e) => setMaxAttempts(Number(e.target.value))}
+                placeholder="Maksimal Coba (e.g. 3)"
+                className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+              />
+            )}
           </Field>
  
           <Field label="Description (optional)">

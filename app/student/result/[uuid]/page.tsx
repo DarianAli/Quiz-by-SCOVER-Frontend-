@@ -2,15 +2,19 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
+import { useState, useEffect } from "react";
 import {
     CheckCircle2, XCircle, Clock, SkipForward, Trophy,
     Star, RotateCcw, Eye, ArrowLeft, Zap,
 } from "lucide-react";
-import { dummyQuizResult as result } from "@/constants/dummy/student-data";
 import { CircularProgressRing } from "@/components/student/shared/circular-progress";
 import { DifficultyBadge } from "@/components/student/shared/badge";
 import { getScoreColor, formatDuration } from "@/lib/student/format";
+import { get } from "@/lib/api-bridge";
+import { getCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
+import { Difficulty } from "@/app/types";
 
 // ─── Stat Block ───────────────────────────────────────────────────────────────
 function StatBlock({
@@ -61,8 +65,66 @@ function BreakdownItem({
 }
 
 // ─── Result Page ──────────────────────────────────────────────────────────────
+interface QuestionBreakdown {
+    question_index: number;
+    question_text: string;
+    is_correct: boolean;
+    is_skipped: boolean;
+}
+
+interface ResultData {
+    quiz_uuid: string;
+    quiz_title: string;
+    subject_name: string;
+    difficulty: Difficulty;
+    score: {
+        score: number;
+        correct: number;
+        wrong: number;
+        skipped: number;
+        duration_used: number;
+        accuracy: number;
+    };
+    xp_earned: number;
+    rank: number;
+    question_breakdown: QuestionBreakdown[];
+}
+
 export default function ResultPage() {
     const router  = useRouter();
+    const params = useParams<{ uuid: string }>();
+    const uuid = params.uuid;
+
+    const [result, setResult] = useState<ResultData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchResult = async () => {
+            try {
+                const token = getCookie("token") as string;
+                const res = await get(`${BASE_API_URL}/student/result/${uuid}`, token);
+                if (res.data?.status) {
+                    setResult(res.data.data);
+                } else {
+                    console.error("Failed to load result");
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        if (uuid) fetchResult();
+    }, [uuid]);
+
+    if (isLoading) {
+        return <div className="min-h-screen flex items-center justify-center">Memuat Hasil...</div>;
+    }
+
+    if (!result) {
+        return <div className="min-h-screen flex items-center justify-center text-red-500">Hasil tidak ditemukan.</div>;
+    }
+
     const s       = result.score;
     const color   = getScoreColor(s.score);
 

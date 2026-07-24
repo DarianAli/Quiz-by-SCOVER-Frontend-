@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState, useEffect } from "react";
 import {
     LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, Cell,
@@ -9,10 +10,12 @@ import {
     TrendingUp, TrendingDown, Minus, Trophy, Flame,
     CheckSquare, Target, Clock, BookOpen, Zap,
 } from "lucide-react";
-import { dummyStudentProgress as progress } from "@/constants/dummy/student-data";
 import { CircularProgressRing } from "@/components/student/shared/circular-progress";
 import { ProgressBar } from "@/components/student/shared/progress-bar";
 import { TrendBadge } from "@/components/student/shared/badge";
+import { get } from "@/lib/api-bridge";
+import { getCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -53,7 +56,75 @@ const SUBJECT_COLORS = ["#1D61D2","#10b981","#F4C430","#8b5cf6","#ec4899","#f973
 
 // ─── Progress Page ────────────────────────────────────────────────────────────
 
+interface MonthlyPerformance {
+    month: string;
+    average_score: number;
+}
+
+interface SubjectProgress {
+    subject_name: string;
+    trend: "UP" | "DOWN" | "STABLE";
+    completed_quiz: number;
+    total_quiz: number;
+    mastery_percentage: number;
+    average_score: number;
+}
+
+interface TopicPerformance {
+    topic: string;
+    subject: string;
+    attempts: number;
+    accuracy: number;
+}
+
+interface ProgressData {
+    overall: {
+        average_score: number;
+        learning_streak: number;
+        completed_quiz: number;
+        total_time_spent: number;
+        completion_rate: number;
+        total_quiz: number;
+        average_accuracy: number;
+    };
+    accuracy_trend: { quiz_title: string; accuracy: number; date: string }[];
+    monthly_performance: MonthlyPerformance[];
+    subject_progress: SubjectProgress[];
+    weak_topics: TopicPerformance[];
+    strong_topics: TopicPerformance[];
+}
+
 export default function ProgressPage() {
+    const [progress, setProgress] = useState<ProgressData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchProgress = async () => {
+            try {
+                const token = getCookie("token") as string;
+                const res = await get(`${BASE_API_URL}/student/progress`, token);
+                if (res.data?.status) {
+                    setProgress(res.data.data);
+                } else {
+                    console.error("Failed to load progress");
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchProgress();
+    }, []);
+
+    if (isLoading) {
+        return <div className="min-h-screen flex items-center justify-center">Memuat Progress...</div>;
+    }
+
+    if (!progress) {
+        return <div className="min-h-screen flex items-center justify-center text-red-500">Progress tidak ditemukan.</div>;
+    }
+
     const { overall, subject_progress, monthly_performance, accuracy_trend, weak_topics, strong_topics } = progress;
 
     return (

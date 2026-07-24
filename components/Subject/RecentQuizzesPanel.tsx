@@ -1,10 +1,10 @@
 "use client"
 
 import { getSubjectTheme, type SubjectThemeKey } from "@/lib/theme/subject-themes"
-import type { Difficulty, QuizItem } from "@/constants/dummy/subjectData"
+import { Difficulty, IQuiz } from "@/app/types"
 
 export interface RecentQuizRowData {
-  quiz: QuizItem
+  quiz: IQuiz
   subjectName: string
   subjectTheme: SubjectThemeKey
   icon: React.ReactNode
@@ -57,10 +57,11 @@ export default function RecentQuizzesPanel({
           {rows.map(({ quiz, subjectName, subjectTheme, icon }) => {
             const theme = getSubjectTheme(subjectTheme)
             const isPublished = quiz.status === "COMPLETED"
-            const hasQuestions = quiz.questions.length > 0
+            const questions = quiz.questions || []
+            const hasQuestions = questions.length > 0
             // progress kasar: proporsi soal yang sudah terisi teksnya
-            const filled = quiz.questions.filter((q) => q.question_text.trim().length > 0).length
-            const progress = quiz.questions.length ? Math.round((filled / quiz.questions.length) * 100) : 0
+            const filled = questions.filter((q) => q.question_text.trim().length > 0).length
+            const progress = questions.length ? Math.round((filled / questions.length) * 100) : 0
 
             return (
               <div
@@ -84,7 +85,7 @@ export default function RecentQuizzesPanel({
                     </div>
                     <div className="flex items-center gap-2 flex-wrap mt-1 text-xs text-slate-500">
                       <span className={`px-1.5 py-0.5 rounded ${theme.badge}`}>{subjectName}</span>
-                      <span>📄 {quiz.questions.length} questions</span>
+                      <span>📄 {questions.length} questions</span>
                       <span>⏱ {quiz.duration} min</span>
                       <span className={`px-1.5 py-0.5 rounded-md ${difficultyTone[quiz.difficulty]}`}>
                         {quiz.difficulty.charAt(0) + quiz.difficulty.slice(1).toLowerCase()}
