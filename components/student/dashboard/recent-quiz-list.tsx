@@ -39,7 +39,7 @@ export function RecentQuizList({ data }: RecentQuizListProps) {
                     const accuracy = Math.round((quiz.correct / quiz.total_questions) * 100);
                     return (
                         <motion.div
-                            key={quiz.quiz_uuid}
+                            key={quiz.score_uuid}
                             initial={{ opacity: 0, x: -8 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: i * 0.05, duration: 0.3 }}

@@ -65,10 +65,11 @@ type NavStatus = "NOT_ANSWERED" | "ANSWERED" | "MARKED_REVIEW" | "CURRENT";
 
 interface QuestionNavProps {
     total: number;
-    answers: Record<number, number>;       // questionId → optionId (index based here is question index 0-based)
-    markedReview: Set<number>;             // 0-based indices
+    answers: Record<string, string>;   // ✅ questionUuid -> optionUuid
+    markedReview: Set<number>;
     currentIndex: number;
     onJump: (index: number) => void;
+    questionIds?: string[];            // ✅ uuid[]
 }
 
 const NAV_STYLES: Record<NavStatus, string> = {
@@ -78,12 +79,12 @@ const NAV_STYLES: Record<NavStatus, string> = {
     NOT_ANSWERED:  "bg-gray-100 text-gray-500 hover:bg-gray-200",
 };
 
-export function QuestionNavigator({ total, answers, markedReview, currentIndex, onJump }: QuestionNavProps) {
+export function QuestionNavigator({ total, answers, markedReview, currentIndex, onJump, questionIds }: QuestionNavProps) {
     function getStatus(index: number): NavStatus {
         if (index === currentIndex) return "CURRENT";
         if (markedReview.has(index)) return "MARKED_REVIEW";
-        // answers keyed by questionId — using index+1 for 1-based questionId mapping in dummy
-        if (Object.prototype.hasOwnProperty.call(answers, index + 1)) return "ANSWERED";
+        const qId = questionIds ? questionIds[index] : null;
+        if (qId && Object.prototype.hasOwnProperty.call(answers, qId)) return "ANSWERED";
         return "NOT_ANSWERED";
     }
 

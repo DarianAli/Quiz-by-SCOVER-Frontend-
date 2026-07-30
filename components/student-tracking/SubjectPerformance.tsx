@@ -1,7 +1,7 @@
 "use client"
 
 import type { SubjectMastery } from "@/types/student"
-import { getSubjectTheme } from "@/lib/student/subjectTheme";
+import { getSubjectTheme } from "@/lib/theme/subject-themes";
 
 interface SubjectPerformanceProps {
   mastery: SubjectMastery[];
@@ -22,7 +22,7 @@ export function SubjectPerformance({ mastery }: SubjectPerformanceProps) {
 
       <ul className="mt-4 space-y-4" role="list">
         {mastery.map((m) => {
-          const theme = getSubjectTheme(m.subject);
+          const theme = getSubjectTheme(m.subject as any);
           return (
             <li key={`${m.subject}-${m.label}`}>
               <div className="mb-1.5 flex items-center justify-between">
@@ -48,11 +48,8 @@ export function SubjectPerformance({ mastery }: SubjectPerformanceProps) {
                 className="h-2 w-full overflow-hidden rounded-full bg-slate-100"
               >
                 <div
-                  className="h-full rounded-full transition-[width] duration-700 ease-out"
-                  style={{
-                    width: `${m.mastery}%`,
-                    backgroundColor: theme.previewAccent,
-                  }}
+                  className={`h-full rounded-full transition-[width] duration-700 ease-out ${theme.progressFill}`}
+                  style={{ width: `${m.mastery}%` }}
                 />
               </div>
             </li>

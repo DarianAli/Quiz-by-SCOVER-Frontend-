@@ -102,8 +102,8 @@ export interface StudentDetailBundle {
 }
 
 export interface ClassOverview {
+  totalStudents: number;
   className: string;
-  learnerCount: number;
   averageScore: number;
   risingCount: number;
   topPerformer: { name: string; score: number };
@@ -111,6 +111,9 @@ export interface ClassOverview {
   atRiskThreshold: number;
   longestStreak: { name: string; days: number };
   averageCompletion: number;
+  needsAttention: number
+  totalQuizzes: number;
+  activeQuizzes: number;
 }
 
 export type SortKey = "score" | "completion" | "name" | "lastActive";

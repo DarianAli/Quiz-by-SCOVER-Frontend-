@@ -2,22 +2,51 @@
 
 import { motion } from "framer-motion";
 import { BookOpen, Search, Filter } from "lucide-react";
-import { useState, useMemo } from "react";
-import { dummyStudentSubjects } from "@/constants/dummy/student-subjects";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { SubjectCard } from "@/components/student/subject/subject-card";
+import { get } from "@/lib/api-bridge";
+import { getCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
 
 export default function SubjectsPage() {
     const [search, setSearch] = useState("");
+    const [subjects, setSubjects] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const hasFetched = useRef(false)
+
+    useEffect(() => {
+        if (hasFetched.current) return
+        hasFetched.current = true
+
+        const fetchSubjects = async () => {
+            try {
+                const token = getCookie("token") as string;
+                const res = await get(`${BASE_API_URL}/student/subjects`, token);
+                if (res.data?.success) {
+                    setSubjects(res.data.data);
+                }
+            } catch (error) {
+                console.error("Failed to fetch student subjects", error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchSubjects();
+    }, []);
 
     const filtered = useMemo(() =>
-        dummyStudentSubjects.filter(s =>
+        subjects.filter(s =>
             s.subject_name.toLowerCase().includes(search.toLowerCase())
-        ), [search]);
+        ), [search, subjects]);
 
-    const totalQuiz     = dummyStudentSubjects.reduce((a, s) => a + s.total_quiz, 0);
-    const completedQuiz = dummyStudentSubjects.reduce((a, s) => a + s.completed_quiz, 0);
-    const overallAvg    = Math.round(dummyStudentSubjects.reduce((a, s) => a + s.average_score, 0) / dummyStudentSubjects.length);
-    const overallPct    = Math.round((completedQuiz / totalQuiz) * 100);
+    const totalQuiz     = subjects.reduce((a, s) => a + (s.total_quiz || 0), 0);
+    const completedQuiz = subjects.reduce((a, s) => a + (s.completed_quiz || 0), 0);
+    const overallAvg    = subjects.length > 0 ? Math.round(subjects.reduce((a, s) => a + (s.average_score || 0), 0) / subjects.length) : 0;
+    const overallPct    = totalQuiz > 0 ? Math.round((completedQuiz / totalQuiz) * 100) : 0;
+
+    if (isLoading) {
+        return <div className="flex items-center justify-center h-96">Memuat Mata Pelajaran...</div>;
+    }
 
     return (
         <div className="space-y-8 pb-12">
@@ -67,7 +96,7 @@ export default function SubjectsPage() {
             {filtered.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
                     {filtered.map((subject, i) => (
-                        <SubjectCard key={subject.uuid} subject={subject} index={i} />
+                        <SubjectCard key={subject.uuid || subject.id} subject={subject} index={i} />
                     ))}
                 </div>
             ) : (

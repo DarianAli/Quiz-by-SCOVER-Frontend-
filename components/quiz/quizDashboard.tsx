@@ -1,15 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Sigma, Compass, Dna, FlaskConical, Landmark, Languages, Atom, FileQuestion } from "lucide-react"
-import {
-  getQuizzes,
-  addQuiz,
-  dummySubjects,
-  type QuizItem,
-  type Difficulty,
-} from "@/constants/dummy/subjectData"
 import type { SubjectThemeKey } from "@/lib/theme/subject-themes"
 import QuizBasicInfoPanel from "./quizBasicInforPanel"
 import DashboardHero from "../Subject/DashboardHero"
@@ -18,11 +11,16 @@ import RecentQuizzesPanel from "@/components/Subject/RecentQuizzesPanel"
 import WeeklyStreakCard from "@/components/Subject/WeeklyStreakCard"
 import LiveActivityCard, { type LiveActivityItem } from "@/components/Subject/LiveActivityCard"
 
+import { get, post } from "@/lib/api-bridge"
+import { getCookie } from "@/lib/client-cookie"
+import { BASE_API_URL } from "@/global"
+import { toast } from "react-toastify"
+
 interface QuizDashboardProps {
-  onOpenEditor: (idQuiz: number) => void
+  onOpenEditor: (idQuiz: string) => void
 }
 
-const SUBJECT_ICON: Record<SubjectThemeKey, React.ReactNode> = {
+const SUBJECT_ICON: Record<string, React.ReactNode> = {
   math: <Sigma size={18} />,
   geometry: <Compass size={18} />,
   physics: <Atom size={18} />,
@@ -33,85 +31,122 @@ const SUBJECT_ICON: Record<SubjectThemeKey, React.ReactNode> = {
   english: <Languages size={18} />,
 }
 
-// TODO Placeholder murni untuk tampilan — ganti dengan data asli begitu
-// endpoint TeacherDashboardOverview / live attempt feed tersedia.
 const PLACEHOLDER_WEEKLY_STREAK_DAYS = 0
 const PLACEHOLDER_LIVE_ACTIVITY: LiveActivityItem[] = []
 
 export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
   const router = useRouter()
   const [panelOpen, setPanelOpen] = useState(false)
-  const [quizzes, setQuizzes] = useState<QuizItem[]>(getQuizzes())
+  const [quizzes, setQuizzes] = useState<any[]>([])
+  const [subjects, setSubjects] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const teacherName = getCookie("userName") || "Coach"
 
-  const handleCreate = (data: {
+  const fetchData = async () => {
+    setIsLoading(true)
+    try {
+      const token = getCookie("token") as string
+      const [resQuiz, resSub] = await Promise.all([
+        get(`${BASE_API_URL}/quiz/all`, token),
+        get(`${BASE_API_URL}/subject/all`, token)
+      ])
+      
+      if (resQuiz.data?.success) setQuizzes(resQuiz.data.data)
+      if (resSub.data?.success) setSubjects(resSub.data.data)
+    } catch (error) {
+      console.error("Error fetching quiz dashboard data:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const handleCreate = async (data: {
     quiz_title: string
-    classId: number
-    subjectId: number
-    difficulty: Difficulty
+    classId: string
+    subjectId: string
+    difficulty: string
     duration: number
     status: "DRAFT" | "PUBLISHED"
     description: string
+    retake_policy?: string
+    max_attempts?: number
   }) => {
-    const newQuiz: QuizItem = {
-      idQuiz: Date.now(),
-      quiz_title: data.quiz_title,
-      duration: data.duration,
-      status: data.status === "PUBLISHED" ? "COMPLETED" : "INCOMPLETED",
-      difficulty: data.difficulty,
-      subjectId: data.subjectId,
-      classId: data.classId,
-      questions: [],
-      updated_at: new Date().toISOString(),
+    try {
+      const token = getCookie("token") as string
+      const payload = {
+        ...data,
+        status: data.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT"
+      }
+      
+      const res = await post(`${BASE_API_URL}/quiz/add`, payload, token)
+      
+      if (res.data?.success) {
+        toast.success("Kuis berhasil dibuat")
+        setPanelOpen(false)
+        fetchData() // Refresh list
+        onOpenEditor(res.data.data.uuid)
+      } else {
+        toast.error(res.data?.message || "Gagal membuat kuis")
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Terjadi kesalahan")
     }
-    addQuiz(newQuiz)
-    setQuizzes(getQuizzes())
-    setPanelOpen(false)
-    onOpenEditor(newQuiz.idQuiz)
   }
 
   const heroStats = {
     activeQuiz: quizzes.length,
     activeQuizDelta: undefined,
-    studentsEngaged: 0, // TODO: sambungkan ke data attempt/scores asli
+    studentsEngaged: 0, 
     studentsEngagedDelta: undefined,
-    averageScore: 0, // TODO: sambungkan ke data scores asli
+    averageScore: 0, 
     averageScoreDelta: undefined,
-    completionRate: 0, // TODO: sambungkan ke data scores asli
+    completionRate: 0, 
     completionRateDelta: undefined,
   }
-  const pendingReviews = quizzes.filter((q) => q.status === "INCOMPLETED").length
+  const pendingReviews = quizzes.filter((q) => q.status === "DRAFT").length
 
-  const subjectCards: SubjectCardData[] = dummySubjects.map((s) => {
-    const relatedQuizzes = quizzes.filter((q) => q.subjectId === s.idSubject)
-    const totalQuestions = relatedQuizzes.reduce((sum, q) => sum + q.questions.length, 0)
+  const subjectCards: SubjectCardData[] = subjects.map((s, i) => {
+    const relatedQuizzes = quizzes.filter((q) => q.subjectId === s.id)
+    const totalQuestions = relatedQuizzes.reduce((sum, q) => sum + (q.questions?.length || 0), 0)
+    const themes = ["math", "physics", "english", "biology", "history"]
+    const theme = themes[i % themes.length]
     return {
-      id: s.idSubject,
+      id: s.uuid || s.id,
       name: s.subject_name,
-      theme: s.theme,
-      icon: SUBJECT_ICON[s.theme],
+      theme: theme as SubjectThemeKey,
+      icon: SUBJECT_ICON[theme],
       lessonCount: relatedQuizzes.length,
-      studentCount: 0, // TODO: belum ada relasi student per subject di dummy ini
+      studentCount: 0, 
       progress: totalQuestions > 0 ? Math.min(100, totalQuestions * 5) : 0,
     }
   })
 
   const recentQuizRows = quizzes.map((quiz) => {
-    const subject = dummySubjects.find((s) => s.idSubject === quiz.subjectId)
+    const subject = subjects.find((s) => s.id === quiz.subjectId)
+    const themes = ["math", "physics", "english", "biology", "history"]
     return {
-      quiz,
-      subjectName: subject?.subject_name ?? "",
-      subjectTheme: subject?.theme ?? ("math" as SubjectThemeKey),
+      quiz: quiz as any, // Cast as any or IQuiz since the backend representation might lack some Prisma relations but matches what the component expects
+      subjectName: subject?.subject_name ?? "General",
+      subjectTheme: (themes[quiz.subjectId % themes.length] || "math") as SubjectThemeKey,
       icon: <FileQuestion size={18} />,
     }
   })
 
+  if (isLoading) {
+    return <div className="flex h-screen items-center justify-center">Loading Data...</div>
+  }
+
   return (
     <div className="min-h-dvh bg-slate-50 p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-full mx-auto space-y-8">
         <DashboardHero
-          teacherName="Novara" // TODO: ganti dengan nama tentor yang sedang login
+          teacherName={teacherName}
           pendingReviews={pendingReviews}
-          newSubmissions={0} // TODO: ganti dengan data submission asli
+          newSubmissions={0} 
           stats={heroStats}
           onCreateQuiz={() => setPanelOpen(true)}
         />
@@ -132,8 +167,8 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
           <RecentQuizzesPanel
             rows={recentQuizRows}
             onCreateQuiz={() => setPanelOpen(true)}
-            onContinueEditing={onOpenEditor}
-            onStartAddingQuestions={(idQuiz) => router.push(`/tentor/subject/${idQuiz}/add-question`)}
+            onContinueEditing={(idQuiz) => onOpenEditor(idQuiz)}
+            onStartAddingQuestions={(idQuiz) => router.push(`/tentor/tasks/${idQuiz}/add-question`)}
           />
           <div className="space-y-5">
             <WeeklyStreakCard days={PLACEHOLDER_WEEKLY_STREAK_DAYS} />

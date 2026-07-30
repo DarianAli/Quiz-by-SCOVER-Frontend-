@@ -1,16 +1,19 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
     ArrowLeft, ArrowRight, CheckCircle2, XCircle,
     SkipForward, Bookmark, ChevronLeft, ChevronRight,
     Eye,
 } from "lucide-react";
-import { dummyQuizReview as review } from "@/constants/dummy/student-data";
 import { DifficultyBadge } from "@/components/student/shared/badge";
 import type { IReviewQuestion } from "@/app/types";
+import { get } from "@/lib/api-bridge";
+import { getCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 type ReviewStatus = "correct" | "wrong" | "marked" | "skipped";
@@ -52,14 +55,59 @@ type FilterType = "ALL" | ReviewStatus;
 
 // ─── Review Page ──────────────────────────────────────────────────────────────
 export default function ReviewPage() {
+    const params = useParams<{ uuid: string }>();
+    const uuid = params.uuid;
+
+    const [review, setReview] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
     const [currentIndex, setCurrentIndex] = useState(0);
     const [filter, setFilter]             = useState<FilterType>("ALL");
     const [direction, setDirection]       = useState<"next" | "prev">("next");
 
+    useEffect(() => {
+        const fetchReview = async () => {
+            try {
+                const token = getCookie("token") as string;
+                const res = await get(`${BASE_API_URL}/student/review/${uuid}`, token);
+                if (res.data?.success) {
+                    setReview(res.data.data);
+                } else {
+                    console.error("Failed to load review");
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        if (uuid) fetchReview();
+    }, [uuid]);
+
     const filteredQuestions = useMemo(() => {
+        if (!review) return [];
         if (filter === "ALL") return review.questions;
-        return review.questions.filter(q => getQuestionStatus(q) === filter);
-    }, [filter]);
+        return review.questions.filter((q: IReviewQuestion) => getQuestionStatus(q) === filter);
+    }, [filter, review]);
+
+    // Count per status
+    const counts = useMemo(() => {
+        if (!review) return { correct: 0, wrong: 0, marked: 0, skipped: 0 };
+        return {
+            correct: review.questions.filter((q: IReviewQuestion) => getQuestionStatus(q) === "correct").length,
+            wrong:   review.questions.filter((q: IReviewQuestion) => getQuestionStatus(q) === "wrong").length,
+            marked:  review.questions.filter((q: IReviewQuestion) => getQuestionStatus(q) === "marked").length,
+            skipped: review.questions.filter((q: IReviewQuestion) => getQuestionStatus(q) === "skipped").length,
+        };
+    }, [review]);
+
+    if (isLoading) {
+        return <div className="min-h-screen flex items-center justify-center">Memuat Review...</div>;
+    }
+
+    if (!review) {
+        return <div className="min-h-screen flex items-center justify-center text-red-500">Review tidak ditemukan.</div>;
+    }
 
     const currentQuestion = filteredQuestions[currentIndex] ?? review.questions[0];
     const status          = getQuestionStatus(currentQuestion);
@@ -84,14 +132,6 @@ export default function ReviewPage() {
         center: { x: 0, opacity: 1 },
         exit:   (dir: string) => ({ x: dir === "next" ? -40 : 40, opacity: 0 }),
     };
-
-    // Count per status
-    const counts = useMemo(() => ({
-        correct: review.questions.filter(q => getQuestionStatus(q) === "correct").length,
-        wrong:   review.questions.filter(q => getQuestionStatus(q) === "wrong").length,
-        marked:  review.questions.filter(q => getQuestionStatus(q) === "marked").length,
-        skipped: review.questions.filter(q => getQuestionStatus(q) === "skipped").length,
-    }), []);
 
     return (
         <div className="max-w-4xl mx-auto pb-12 space-y-8">
@@ -216,7 +256,7 @@ export default function ReviewPage() {
 
                             {/* Options */}
                             <div className="px-5 md:px-6 py-5 space-y-2.5">
-                                {currentQuestion.options.map((opt, oi) => {
+                                {currentQuestion.options?.map((opt: any, oi: number) => {
                                     const label      = String.fromCharCode(65 + oi);
                                     const isSelected = opt.idOption === currentQuestion.selected_option_id;
                                     const isCorrect  = opt.is_correct;
@@ -280,7 +320,7 @@ export default function ReviewPage() {
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4">
                         <h4 className="text-xs font-bold text-[#0d4669] uppercase tracking-wide mb-3">Navigator Soal</h4>
                         <div className="grid grid-cols-5 gap-1.5">
-                            {filteredQuestions.map((q, i) => {
+                            {filteredQuestions.map((q: any, i: number) => {
                                 const s = getQuestionStatus(q);
                                 const isCurrent = i === currentIndex;
                                 return (

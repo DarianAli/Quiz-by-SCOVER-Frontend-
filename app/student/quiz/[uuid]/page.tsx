@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
     ChevronLeft, ChevronRight, Bookmark, BookmarkCheck,
-    BookOpen, Send,
+    BookOpen, Send, AlertCircle,
 } from "lucide-react";
-import { dummyQuizDetail as quiz } from "@/constants/dummy/student-quiz";
 import { DifficultyBadge } from "@/components/student/shared/badge";
 import {
     QuizTimer,
@@ -15,26 +14,154 @@ import {
     SubmitModal,
 } from "@/components/student/quiz/quiz-components";
 
+import { get, post } from "@/lib/api-bridge";
+import { getCookie } from "@/lib/client-cookie";
+import { BASE_API_URL } from "@/global";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface QuizOption {
+    idOption: number;
+    uuid: string;
+    option_text: string;
+    option_image?: string;
+}
+
+interface QuizQuestion {
+    idQuestion: number;
+    uuid: string;
+    question_text: string;
+    question_image?: string;
+    difficulty: string;
+    poin: number;
+    options: QuizOption[];
+}
+
+interface QuizData {
+    uuid: string;
+    quiz_title: string;
+    difficulty: string;
+    duration: number;
+    subject_name?: string;
+    subject?: { uuid: string; subject_name: string };
+    questions: QuizQuestion[];
+}
+
 export default function QuizPage() {
-    const router   = useRouter();
+    const router = useRouter();
+    const params = useParams<{ uuid: string }>();
+    const uuid = params.uuid;
+
     const startRef = useRef(new Date());
 
     // State
-    const [currentIndex, setCurrentIndex]       = useState(0);
-    const [answers, setAnswers]                  = useState<Record<number, number>>({});
-    const [markedReview, setMarkedReview]        = useState<Set<number>>(new Set());
-    const [showSubmit, setShowSubmit]            = useState(false);
-    const [isSubmitting, setIsSubmitting]        = useState(false);
-    const [direction, setDirection]              = useState<"next" | "prev">("next");
+    const [quiz, setQuiz]         = useState<QuizData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError]         = useState<string | null>(null);
 
-    const currentQuestion = quiz.questions[currentIndex];
-    const totalQuestions  = quiz.questions.length;
-    const answeredCount   = Object.keys(answers).length;
+    const [currentIndex, setCurrentIndex]   = useState(0);
+    // ✅ answers: { [questionUuid]: optionUuid } — TIDAK menggunakan integer ID
+    const [answers, setAnswers]             = useState<Record<string, string>>({});
+    const [markedReview, setMarkedReview]   = useState<Set<number>>(new Set());
+    const [showSubmit, setShowSubmit]       = useState(false);
+    const [isSubmitting, setIsSubmitting]   = useState(false);
+    const [direction, setDirection]         = useState<"next" | "prev">("next");
+    const hasInitialized = useRef(false)
 
-    // Select answer (autosave)
-    const handleAnswer = useCallback((questionId: number, optionId: number) => {
-        setAnswers(prev => ({ ...prev, [questionId]: optionId }));
-    }, []);
+    useEffect(() => {
+        if (hasInitialized.current) return
+        hasInitialized.current = true
+
+        const initQuiz = async () => {
+            try {
+                const token = getCookie("token") as string;
+
+                // 1. Fetch quiz details via student endpoint (UUID-based)
+                const quizRes = await get(`${BASE_API_URL}/quiz/${uuid}`, token);
+
+                // ✅ Cek success dari body response (bukan hanya HTTP status)
+                if (!quizRes.data?.success) {
+                    setError(quizRes.data?.message || "Quiz tidak ditemukan atau tidak bisa diakses.");
+                    return;
+                }
+
+                const quizData = quizRes.data.data as QuizData;
+                setQuiz(quizData);
+
+                // Update start time berdasarkan waktu server (jika resume)
+                if (quizData.questions.length === 0) {
+                    setError("Quiz ini belum memiliki soal.");
+                    return;
+                }
+
+                // 2. Start / resume attempt — backend cari sendiri attemptId via userId+quizId
+                const attemptRes = await post(`${BASE_API_URL}/quiz/${uuid}/attempt/start`, {}, token);
+
+                if (!attemptRes.data?.success) {
+                    // Jangan crash — set error dan arahkan kembali
+                    setError(attemptRes.data?.message || "Gagal memulai attempt.");
+                    setTimeout(() => router.back(), 2000);
+                    return;
+                }
+
+                const attemptData = attemptRes.data.data;
+
+                // ✅ Jika resume, restore saved_answers menggunakan UUID (bukan integer)
+                // saved_answers dari backend berisi { [questionsId]: optionsId } (integer internal)
+                // Kita perlu convert ke { [questionUuid]: optionUuid } menggunakan data quiz
+                if (attemptData.is_resume && attemptData.saved_answers) {
+                    const savedRaw: Record<number, number> = attemptData.saved_answers;
+                    const restoredAnswers: Record<string, string> = {};
+
+                    for (const q of quizData.questions) {
+                        const savedOptionId = savedRaw[q.idQuestion];
+                        if (savedOptionId !== undefined) {
+                            const matchedOption = q.options.find(o => o.idOption === savedOptionId);
+                            if (matchedOption) {
+                                restoredAnswers[q.uuid] = matchedOption.uuid;
+                            }
+                        }
+                    }
+                    setAnswers(restoredAnswers);
+                }
+
+                // Update start time jika resume
+                if (attemptData.start_time) {
+                    startRef.current = new Date(attemptData.start_time);
+                }
+
+            } catch (err: any) {
+                console.error("Quiz init error", err);
+                const msg = err?.response?.data?.message
+                    ?? err?.message
+                    ?? "Gagal menginisialisasi quiz.";
+                setError(msg);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        if (uuid) initQuiz();
+    }, [uuid, router]);
+
+    const currentQuestion  = quiz?.questions?.[currentIndex] ?? null;
+    const totalQuestions   = quiz?.questions?.length ?? 0;
+    const answeredCount    = Object.keys(answers).length;
+
+    // ✅ Autosave jawaban menggunakan UUID — tidak ada integer ID di payload
+    const handleAnswer = useCallback(async (questionUuid: string, optionUuid: string) => {
+        setAnswers(prev => ({ ...prev, [questionUuid]: optionUuid }));
+        if (!quiz || !uuid) return;
+
+        try {
+            const token = getCookie("token") as string;
+            await post(`${BASE_API_URL}/quiz/${uuid}/answers`, {
+                questionUuid,
+                optionUuid,
+            }, token);
+        } catch (err) {
+            console.error("Failed to autosave answer", err);
+        }
+    }, [quiz, uuid]);
 
     // Toggle mark for review
     const toggleMark = useCallback(() => {
@@ -55,17 +182,31 @@ export default function QuizPage() {
     const goPrev = () => { if (currentIndex > 0) goTo(currentIndex - 1); };
     const goNext = () => { if (currentIndex < totalQuestions - 1) goTo(currentIndex + 1); };
 
-    // Submit
+    // ✅ Submit — backend cari attempt aktif secara internal via userId+quizUuid
     const handleSubmit = useCallback(async () => {
+        if (!quiz || !uuid) return;
         setIsSubmitting(true);
-        // TODO: POST /student/attempt/submit
-        await new Promise(r => setTimeout(r, 1200));
-        router.push(`/student/result/${quiz.uuid}`);
-    }, [router]);
+        try {
+            const token = getCookie("token") as string;
+            // ✅ Tidak ada idAttempt di URL — backend resolves via userId+quizId
+            const res = await post(`${BASE_API_URL}/quiz/${uuid}/attempt/submit`, {}, token);
+            if (res.data?.success) {
+                router.push(`/student/result/${uuid}`);
+            } else {
+                alert(res.data?.message || "Gagal mengumpulkan quiz.");
+                setIsSubmitting(false);
+            }
+        } catch (err: any) {
+            console.error("Failed to submit", err);
+            alert(err?.response?.data?.message ?? "Gagal mengumpulkan quiz.");
+            setIsSubmitting(false);
+        }
+    }, [router, quiz, uuid]);
 
     const handleTimeExpire = useCallback(() => {
         setShowSubmit(true);
-    }, []);
+        handleSubmit();
+    }, [handleSubmit]);
 
     const variants = {
         enter:  (dir: "next" | "prev") => ({ x: dir === "next" ?  40 : -40, opacity: 0 }),
@@ -73,8 +214,47 @@ export default function QuizPage() {
         exit:   (dir: "next" | "prev") => ({ x: dir === "next" ? -40 :  40, opacity: 0 }),
     };
 
-    const isMarked       = markedReview.has(currentIndex);
-    const selectedOption = answers[currentQuestion.idQuestion];
+    // ─── Loading state ────────────────────────────────────────────────────────
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center space-y-3">
+                    <div className="w-8 h-8 border-2 border-[#1D61D2] border-t-transparent rounded-full animate-spin mx-auto" />
+                    <p className="text-sm text-gray-500">Memuat kuis...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // ─── Error state — tidak crash (white screen), tampil pesan ──────────────
+    if (error || !quiz) {
+        return (
+            <div className="min-h-screen flex items-center justify-center p-6">
+                <div className="text-center space-y-4 max-w-md">
+                    <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+                        <AlertCircle size={28} className="text-red-500" />
+                    </div>
+                    <h2 className="text-lg font-bold text-gray-800">
+                        {error || "Kuis tidak ditemukan"}
+                    </h2>
+                    <p className="text-sm text-gray-500">
+                        Silakan kembali dan coba lagi. Jika masalah berlanjut, hubungi tentor Anda.
+                    </p>
+                    <button
+                        onClick={() => router.back()}
+                        className="px-5 py-2.5 bg-[#1D61D2] text-white text-sm font-semibold rounded-xl hover:bg-[#174EA6] transition-colors"
+                    >
+                        Kembali
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const isMarked = markedReview.has(currentIndex);
+
+    // ✅ Gunakan UUID untuk lookup jawaban yang sudah dipilih (bukan integer)
+    const selectedOptionUuid = currentQuestion ? answers[currentQuestion.uuid] : undefined;
 
     return (
         <div className="min-h-full pb-10">
@@ -84,8 +264,12 @@ export default function QuizPage() {
                 <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-4">
                     {/* Left: subject + title */}
                     <div className="min-w-0">
-                        <p className="text-xs font-semibold text-[#1D61D2] uppercase tracking-wide">{quiz.subject_name}</p>
-                        <h1 className="text-base font-bold text-[#083E63] truncate max-w-[200px] md:max-w-none">{quiz.quiz_title}</h1>
+                        <p className="text-xs font-semibold text-[#1D61D2] uppercase tracking-wide">
+                            {quiz.subject?.subject_name ?? quiz.subject_name}
+                        </p>
+                        <h1 className="text-base font-bold text-[#083E63] truncate max-w-[200px] md:max-w-none">
+                            {quiz.quiz_title}
+                        </h1>
                     </div>
 
                     {/* Center: progress */}
@@ -96,15 +280,24 @@ export default function QuizPage() {
                                 {currentIndex + 1}/{totalQuestions}
                             </span>
                         </div>
-                        <DifficultyBadge difficulty={quiz.difficulty} />
+                        {/* ✅ optional chaining — tidak crash jika quiz.difficulty undefined */}
+                        <DifficultyBadge difficulty={quiz?.difficulty ?? "EASY"} />
                     </div>
 
-                    {/* Right: Timer */}
-                    <QuizTimer
-                        durationMinutes={quiz.duration}
-                        onExpire={handleTimeExpire}
-                        startTime={startRef.current}
-                    />
+                    {/* Right: timer + finish */}
+                    <div className="flex items-center gap-3">
+                        <QuizTimer
+                            durationMinutes={quiz.duration}
+                            startTime={startRef.current}
+                            onExpire={handleTimeExpire}
+                        />
+                        <button
+                            onClick={() => setShowSubmit(true)}
+                            className="hidden sm:flex items-center gap-1.5 bg-[#083E63] hover:bg-[#083E63]/90 text-white px-4 py-1.5 rounded-xl text-sm font-semibold transition-colors"
+                        >
+                            <Send size={14} /> Finish
+                        </button>
+                    </div>
                 </div>
 
                 {/* Progress bar */}
@@ -143,14 +336,15 @@ export default function QuizPage() {
                                             Soal {currentIndex + 1} dari {totalQuestions}
                                         </span>
                                         <div className="flex items-center gap-2">
-                                            <DifficultyBadge difficulty={currentQuestion.difficulty} />
-                                            <span className="text-[11px] text-gray-300">{currentQuestion.poin} poin</span>
+                                            {/* ✅ optional chaining agar tidak crash */}
+                                            <DifficultyBadge difficulty={currentQuestion?.difficulty ?? "EASY"} />
+                                            <span className="text-[11px] text-gray-300">{currentQuestion?.poin ?? 0} poin</span>
                                         </div>
                                     </div>
                                     <p className="text-base md:text-lg font-semibold text-[#0d4669] leading-relaxed">
-                                        {currentQuestion.question_text}
+                                        {currentQuestion?.question_text}
                                     </p>
-                                    {currentQuestion.question_image && (
+                                    {currentQuestion?.question_image && (
                                         // eslint-disable-next-line @next/next/no-img-element
                                         <img
                                             src={currentQuestion.question_image}
@@ -162,14 +356,15 @@ export default function QuizPage() {
 
                                 {/* Options */}
                                 <div className="px-5 md:px-7 py-5 space-y-3">
-                                    {currentQuestion.options.map((option, oi) => {
-                                        const isSelected = selectedOption === option.idOption;
-                                        const optionLabel = String.fromCharCode(65 + oi); // A, B, C, D
+                                    {currentQuestion?.options?.map((option, oi) => {
+                                        // ✅ Bandingkan UUID, bukan integer
+                                        const isSelected   = selectedOptionUuid === option.uuid;
+                                        const optionLabel  = String.fromCharCode(65 + oi); // A, B, C, D
                                         return (
                                             <motion.button
-                                                key={option.idOption}
+                                                key={option.uuid}
                                                 whileTap={{ scale: 0.98 }}
-                                                onClick={() => handleAnswer(currentQuestion.idQuestion, option.idOption)}
+                                                onClick={() => currentQuestion && handleAnswer(currentQuestion.uuid, option.uuid)}
                                                 className={[
                                                     "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left",
                                                     "transition-all duration-200 group",
@@ -260,6 +455,8 @@ export default function QuizPage() {
                             markedReview={markedReview}
                             currentIndex={currentIndex}
                             onJump={goTo}
+                            // ✅ Kirimkan uuid list untuk key mapping di navigator
+                            questionIds={quiz.questions.map(q => q.uuid)}
                         />
                         {/* Submit Button */}
                         <button
