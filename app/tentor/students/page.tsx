@@ -50,7 +50,7 @@ export default function StudentTrackingPage({ onCancel }: StudentsPageProps) {
       try {
         const token = getCookie("token") as string
         const res = await get(`${BASE_API_URL}/tentor/students`, token)
-        if (res.data?.status) {
+        if (res.data?.success) {
           const list = res.data.data.students || res.data.data
           setStudents(list)
           if (res.data.data.overview) {
@@ -98,7 +98,7 @@ export default function StudentTrackingPage({ onCancel }: StudentsPageProps) {
       try {
         const token = getCookie("token") as string
         const res = await get(`${BASE_API_URL}/tentor/students/${selectedStudentId}`, token)
-        if (res.data?.status) {
+        if (res.data?.success) {
           setDetail(res.data.data)
         }
       } catch (error) {
@@ -119,7 +119,7 @@ export default function StudentTrackingPage({ onCancel }: StudentsPageProps) {
   return (
     <>
     <div className="min-h-screen bg-slate-50 pb-16">
-      <main className="mx-auto flex max-w-[1400px] flex-col gap-6 px-4 pt-6 sm:px-8">
+      <main className="mx-auto flex max-w-full flex-col gap-6 px-4 pt-6 sm:px-8">
         <StudentHero overview={classOverview} />
         <StudentSummaryCards overview={classOverview} />
 

@@ -103,7 +103,7 @@ export default function ProgressPage() {
             try {
                 const token = getCookie("token") as string;
                 const res = await get(`${BASE_API_URL}/student/progress`, token);
-                if (res.data?.status) {
+                if (res.data?.success) {
                     setProgress(res.data.data);
                 } else {
                     console.error("Failed to load progress");

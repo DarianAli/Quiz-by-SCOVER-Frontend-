@@ -21,7 +21,7 @@ export default function TentorQuizEditorPage() {
       try {
         const token = getCookie("token") as string
         const res = await get(`${BASE_API_URL}/quiz/${idQuiz}`, token)
-        if (res.data?.status) {
+        if (res.data?.success) {
           setQuiz(res.data.data)
         }
       } catch (error) {
@@ -44,7 +44,7 @@ export default function TentorQuizEditorPage() {
       <div className="min-h-dvh flex flex-col items-center justify-center gap-3 bg-slate-50">
         <p className="text-sm text-slate-500">Quiz not found.</p>
         <button
-          onClick={() => router.push("/tentor/subject")}
+          onClick={() => router.push("/tentor/tasks")}
           className="px-4 h-9 rounded-lg bg-slate-900 text-white text-sm font-medium"
         >
           Back to dashboard
@@ -57,7 +57,7 @@ export default function TentorQuizEditorPage() {
       <>
         <QuizEditor
           quiz={quiz}
-          onBack={() => router.push("/tentor/subject")}
+          onBack={() => router.push("/tentor/tasks")}
           onSave={async (updated) => {
               try {
                 const token = getCookie("token") as string
@@ -68,7 +68,7 @@ export default function TentorQuizEditorPage() {
                   status: updated.status,
                 }
                 const res = await put(`${BASE_API_URL}/quiz/update/${idQuiz}`, payload, token)
-                if (res.data?.status) {
+                if (res.data?.success) {
                   toast.success("Kuis berhasil diperbarui")
                 } else {
                   toast.error(res.data?.message || "Gagal memperbarui kuis")

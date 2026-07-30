@@ -30,25 +30,25 @@ export default function TeacherDashboard() {
                 
                 // Fetch Dashboard Stats & Recent Submissions
                 const resDash = await get(`${BASE_API_URL}/tentor/dashboard`, token);
-                if (resDash.data?.status) {
+                if (resDash.data?.success) {
                     setDashboardData(resDash.data.data);
                 }
 
                 // Fetch Students for Leaderboard
                 const resStudents = await get(`${BASE_API_URL}/tentor/students`, token);
-                if (resStudents.data?.status) {
+                if (resStudents.data?.success) {
                     setStudentList(resStudents.data.data.students || []);
                 }
 
                 // Fetch Subjects
                 const resSubjects = await get(`${BASE_API_URL}/subject/all`, token);
-                if (resSubjects.data?.status) {
+                if (resSubjects.data?.success) {
                     setSubjects(resSubjects.data.data || []);
                 }
 
                 // Fetch Leaderboard
                 const resLeaderboard = await get(`${BASE_API_URL}/leaderboard`, token);
-                if (resLeaderboard.data?.status) {
+                if (resLeaderboard.data?.success) {
                     setLeaderboardList(resLeaderboard.data.data || []);
                 }
             } catch (error) {
@@ -73,14 +73,16 @@ export default function TeacherDashboard() {
         }));
 
     const subjectCards = subjects.map((sub, idx) => {
-        const colors = ["blue", "mint", "yellow", "purple", "pink"];
+        const colors: Array<"blue" | "mint" | "yellow" | "purple" | "pink"> = ["blue", "mint", "yellow", "purple", "pink"];
         return {
-            id: sub.uuid || sub.id,
+            id: sub.uuid,
             name: sub.subject_name,
-            description: "Modul pembelajaran",
-            teacher: "Tentor",
-            totalQuiz: 0, // Fallback if backend doesn't provide quiz count in subject list
-            progress: 0,
+            totalQuiz: sub.total_quiz ?? 0,
+            totalStudents: sub.total_students ?? 0,
+            tentors: sub.tentors ?? [],
+            isMyClass: sub.is_my_class ?? false,
+            annualGoal: sub.annual_quiz_target ?? null,
+            curriculumProgress: sub.curriculum_progress ?? null,
             color: colors[idx % colors.length],
         };
     });
@@ -110,7 +112,7 @@ export default function TeacherDashboard() {
                         title={`Selamat Datang Kembali, ${dashboardData?.tentor?.full_name || "Coach"}!`}
                         subtitle="Pantau perfoma kelas, kelola tugas siswa, dan tinjau kemajuan kurikulum akademik hari ini secara langsung."
                         buttonText="Manage All Subject"
-                        buttonLink = "/tentor/subject"
+                        buttonLink = "/tentor/tasks"
                     />
                 </section>
 
@@ -130,7 +132,7 @@ export default function TeacherDashboard() {
                         subtitle="Daftar kelas pengajar aktif Anda. Geser untuk melihat cakupan modul pengerjaan."
                         action={
                             <Link
-                                href="/tentor/subject"
+                                href="/tentor/tasks"
                                 className="text-xs font-bold text-[#0B5C8C] hover:text-[#083E63] flex items-center gap-1 transition-colors group bg-white px-3 py-1.5 rounded-xl border border-gray-200 shadows-sm"
                             >
                                 See All Subjects
@@ -141,17 +143,23 @@ export default function TeacherDashboard() {
 
                     {/* Smooth Horizontl Scrolling Wrapper with Snap Controls */}
                     <div className="w-full overflow-x-auto flex flex-row gap-5 pb-4 pt-1 snap-x snap-mandatory scroll-smooth custom-scroll-horizontal">
-                        {subjectCards.length > 0 ? subjectCards.map((sub: any) => (
-                            <div key={sub.id} className="snap-start shrink-0 w-[290px] sm:w-[310px]">
+                        {subjectCards.length > 0 ? subjectCards.map((sub) => (
+                            <Link
+                                key={sub.id}
+                                href="/tentor/tasks"
+                                className="snap-start shrink-0 w-[290px] sm:w-[310px]"
+                            >
                                 <SubjectCard
                                     subject={sub.name}
-                                    description={sub.description}
-                                    teacher={sub.teacher}
                                     totalQuiz={sub.totalQuiz}
-                                    progress={sub.progress}
+                                    totalStudents={sub.totalStudents}
+                                    tentors={sub.tentors}
+                                    isMyClass={sub.isMyClass}
+                                    annualGoal={sub.annualGoal}
+                                    curriculumProgress={sub.curriculumProgress}
                                     color={sub.color}
                                 />
-                            </div>
+                            </Link>
                         )) : (
                             <div className="text-gray-500 text-sm">Belum ada subject tersedia.</div>
                         )}

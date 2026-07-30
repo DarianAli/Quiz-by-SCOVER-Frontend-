@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowLeft, Clock, BookOpen, TrendingUp, Filter } from "lucide-react";
 import Link from "next/link";
 import { QuizCard } from "@/components/student/subject/quiz-card";
@@ -24,12 +24,17 @@ export default function SubjectDetailPage() {
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
     const [diffFilter,   setDiffFilter]   = useState<DiffFilter>("ALL");
 
+    const fetchedIdRef = useRef<string | null>(null)
+
     useEffect(() => {
+        if (!id ||  fetchedIdRef.current === id) return
+        fetchedIdRef.current = id
+
         const fetchSubjectDetail = async () => {
             try {
                 const token = getCookie("token") as string;
                 const res = await get(`${BASE_API_URL}/student/subjects/${id}`, token);
-                if (res.data?.status) {
+                if (res.data?.success) {
                     setSubject(res.data.data);
                 }
             } catch (error) {

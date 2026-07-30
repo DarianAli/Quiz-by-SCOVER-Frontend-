@@ -75,15 +75,16 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
 
   const addQuestion = () => {
     const newQuestion = {
-      id: undefined, // undefined implies new question
+      id: undefined,
+      tempId: `tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`, // ✅ id sementara unik
       question_text: "",
       question_image: "",
       question_type: "multiple_choice",
       difficulty: quiz.difficulty,
       poin: 10,
       options: [
-        { text: "", isCorrect: false },
-        { text: "", isCorrect: false },
+        { id: `tmp-${Date.now()}-a`, option_text: "", is_correct: false },
+        { id: `tmp-${Date.now()}-b`, option_text: "", is_correct: false },
       ],
     }
     setQuiz((prev: any) => ({ ...prev, questions: [...(prev.questions || []), newQuestion] }))
@@ -111,55 +112,74 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
 
   const backToList = () => setView("list")
 
-  const handleSaveQuestionForm = async (value: QuestionFormValue) => {
-    // Determine if it's a new or existing question by checking if it has an `id`
-    if (!activeQuestion) return
-    const isNew = !activeQuestion.id
-    
-    try {
-      const token = getCookie("token") as string
-      let questionId = activeQuestion.id
+const handleSaveQuestionForm = async (value: QuestionFormValue) => {
+  if (!activeQuestion) return
+  const isNew = !activeQuestion.id
 
-      if (isNew) {
-         // Create question
-         const qPayload = {
-            question_text: value.prompt,
-            difficulty: quiz.difficulty,
-            poin: value.points || 10,
-            quizId: quiz.id,
-            discussion: value.explanation
-          }
-          const resQ = await post(`${BASE_API_URL}/question/add`, qPayload, token)
-          if (resQ.data?.status) {
-             questionId = resQ.data.data.id
-             // Create Options
-             if (value.choices && value.choices.length > 0) {
-               const optionPromises = value.choices.map((opt, idx) => {
-                 return post(`${BASE_API_URL}/option/add`, {
-                   option_text: opt.text,
-                   is_correct: String(opt.isCorrect),
-                   order_index: idx,
-                   questionId: questionId
-                 }, token)
-               })
-               await Promise.all(optionPromises)
-             }
-             toast.success("Question created")
-          }
-      } else {
-         // Edit question logic would go here
-         toast.success("Question updated locally (backend update pending)")
+  try {
+    const token = getCookie("token") as string
+    let questionId = activeQuestion.id
+
+    if (isNew) {
+      const qPayload = {
+        question_text: value.prompt,
+        difficulty: quiz.difficulty,
+        poin: value.points || 10,
+        quizId: quiz.uuid,
+        discussion: value.explanation
       }
+      const resQ = await post(`${BASE_API_URL}/question/add`, qPayload, token)
+      if (!resQ.data?.success) {
+        toast.error(resQ.data?.message || "Gagal membuat pertanyaan")
+        return
+      }
+      questionId = resQ.data.data.id
 
+      // ✅ Simpan questionId ke state SEGERA — sebelum step opsi.
+      // Jika step opsi gagal, retry berikutnya tidak akan membuat question baru lagi,
+      // karena activeQuestion.id sudah terisi (isNew jadi false).
+      updateQuestion({
+        ...formValueToQuestionItem(value, questionId),
+        id: questionId,
+      })
+
+      if (value.choices && value.choices.length > 0) {
+        const optionPromises = value.choices.map((opt, idx) =>
+          post(`${BASE_API_URL}/option/add`, {
+            option_text: opt.text,
+            is_correct: String(opt.isCorrect),
+            order_index: idx,
+            questionId: questionId
+          }, token)
+        )
+        const optionResults = await Promise.all(optionPromises)
+        const failed = optionResults.find(r => !r.data?.success)
+        if (failed) {
+          // Question sudah tersimpan, tapi opsi gagal — jangan retry create question lagi.
+          toast.error(failed.data?.message || "Sebagian pilihan jawaban gagal disimpan")
+          return
+        }
+      }
+      toast.success("Question created")
+    } else {
       updateQuestion({
         ...formValueToQuestionItem(value, activeQuestion.idQuestion || activeQuestion.id),
         id: questionId
       })
-      setView("list")
-    } catch(err) {
-      toast.error("Failed to save question")
+      toast.success("Question updated locally (backend update pending)")
     }
+
+    setView("list")
+  } catch (err: any) {
+    console.error("[handleSaveQuestionForm]", {
+      endpoint: `${BASE_API_URL}/question/add | /option/add`,
+      status: err?.response?.status,
+      message: err?.response?.data?.message ?? err?.message,
+      body: err?.response?.data,
+    })
+    toast.error(err?.response?.data?.message || "Failed to save question")
   }
+}
 
   if (view === "question" && activeQuestion) {
     const fallbackQuestionType = activeQuestion.options ? "multiple_choice" : "essay"
@@ -331,7 +351,7 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
                 <div className="space-y-2.5">
                   {quiz.questions.map((q: any, i: number) => (
                     <QuestionListCard
-                      key={q.id || i}
+                      key={q.id ?? q.tempId ?? `idx-${i}`}  
                       question={q}
                       index={i}
                       active={i === activeIndex}

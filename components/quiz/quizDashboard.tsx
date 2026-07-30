@@ -51,8 +51,8 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
         get(`${BASE_API_URL}/subject/all`, token)
       ])
       
-      if (resQuiz.data?.status) setQuizzes(resQuiz.data.data)
-      if (resSub.data?.status) setSubjects(resSub.data.data)
+      if (resQuiz.data?.success) setQuizzes(resQuiz.data.data)
+      if (resSub.data?.success) setSubjects(resSub.data.data)
     } catch (error) {
       console.error("Error fetching quiz dashboard data:", error)
     } finally {
@@ -66,8 +66,8 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
 
   const handleCreate = async (data: {
     quiz_title: string
-    classId: number
-    subjectId: number
+    classId: string
+    subjectId: string
     difficulty: string
     duration: number
     status: "DRAFT" | "PUBLISHED"
@@ -84,7 +84,7 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
       
       const res = await post(`${BASE_API_URL}/quiz/add`, payload, token)
       
-      if (res.data?.status) {
+      if (res.data?.success) {
         toast.success("Kuis berhasil dibuat")
         setPanelOpen(false)
         fetchData() // Refresh list
@@ -142,7 +142,7 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
 
   return (
     <div className="min-h-dvh bg-slate-50 p-4 sm:p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-full mx-auto space-y-8">
         <DashboardHero
           teacherName={teacherName}
           pendingReviews={pendingReviews}
@@ -167,8 +167,8 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
           <RecentQuizzesPanel
             rows={recentQuizRows}
             onCreateQuiz={() => setPanelOpen(true)}
-            onContinueEditing={(idQuiz) => onOpenEditor(idQuiz.toString())}
-            onStartAddingQuestions={(idQuiz) => router.push(`/tentor/subject/${idQuiz}/add-question`)}
+            onContinueEditing={(idQuiz) => onOpenEditor(idQuiz)}
+            onStartAddingQuestions={(idQuiz) => router.push(`/tentor/tasks/${idQuiz}/add-question`)}
           />
           <div className="space-y-5">
             <WeeklyStreakCard days={PLACEHOLDER_WEEKLY_STREAK_DAYS} />

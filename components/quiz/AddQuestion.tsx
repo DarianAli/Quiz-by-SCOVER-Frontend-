@@ -23,7 +23,7 @@ export default function QuizAddQuestionContainer({ idQuiz }: QuizAddQuestionCont
       try {
         const token = getCookie("token") as string
         const res = await get(`${BASE_API_URL}/quiz/${idQuiz}`, token)
-        if (res.data?.status) {
+        if (res.data?.success) {
           setQuiz(res.data.data)
         }
       } catch (error) {
@@ -44,7 +44,7 @@ export default function QuizAddQuestionContainer({ idQuiz }: QuizAddQuestionCont
       <div className="min-h-dvh flex flex-col items-center justify-center gap-3 bg-slate-50">
         <p className="text-sm text-slate-500">Quiz not found.</p>
         <button
-          onClick={() => router.push("/tentor/subject")}
+          onClick={() => router.push("/tentor/tasks")}
           className="px-4 h-9 rounded-lg bg-slate-900 text-white text-sm font-medium"
         >
           Back to dashboard
@@ -66,13 +66,13 @@ export default function QuizAddQuestionContainer({ idQuiz }: QuizAddQuestionCont
         question_text: value.prompt,
         difficulty: quiz.difficulty, // Inherit from quiz
         poin: value.points || 10,
-        quizId: quiz.id, // numeric ID required by backend
+        quizId: quiz.uuid, // numeric ID required by backend
         discussion: value.explanation
       }
       
       const resQ = await post(`${BASE_API_URL}/question/add`, qPayload, token)
       
-      if (!resQ.data?.status) {
+      if (!resQ.data?.success) {
         toast.error("Gagal menyimpan pertanyaan")
         return
       }
@@ -94,7 +94,7 @@ export default function QuizAddQuestionContainer({ idQuiz }: QuizAddQuestionCont
       }
 
       toast.success("Pertanyaan berhasil ditambahkan")
-      router.push(`/tentor/subject/${idQuiz}/editor`)
+      router.push(`/tentor/tasks/${idQuiz}/editor`)
     } catch (error: any) {
       toast.error(error.response?.data?.message || "Terjadi kesalahan saat menyimpan")
     }
@@ -103,7 +103,7 @@ export default function QuizAddQuestionContainer({ idQuiz }: QuizAddQuestionCont
   return (
     <QuestionFormEditor
       initialValue={initialValue}
-      onCancel={() => router.push(`/tentor/subject/${idQuiz}/editor`)}
+      onCancel={() => router.push(`/tentor/tasks/${idQuiz}/editor`)}
       onSave={handleSave}
     />
   )

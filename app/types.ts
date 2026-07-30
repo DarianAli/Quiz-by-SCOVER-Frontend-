@@ -10,8 +10,8 @@ export enum ClassProgram {
 }
 
 export enum Status {
-    INCOMPLETED = "INCOMPLETED",
-    COMPLETED = "COMPLETED"
+    PUBLISHED = "PUBLISHED",
+    DRAFT = "DRAFT"
 }
 
 export enum Difficulty {
@@ -85,7 +85,7 @@ export interface ISubjectClass {
 }
 
 export interface IQuiz {
-    idQuiz: number
+    id: number
     uuid: string
     quiz_title: string
     quiz_date: Date
@@ -307,6 +307,7 @@ export interface IStudentDashboard {
 
 /** Item quiz yang sudah dikerjakan (recent) */
 export interface IRecentQuizItem {
+    score_uuid: string;
     quiz_uuid: string;
     quiz_title: string;
     subject_name: string;

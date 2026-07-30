@@ -11,7 +11,7 @@ export default function TentorQuizDashboardPage() {
 
   return (
         <QuizDashboard
-        onOpenEditor={(idQuiz) => router.push(`/tentor/subject/${idQuiz}/editor`)}
+        onOpenEditor={(id) => router.push(`/tentor/tasks/${id}/editor`)}
         />
   )
 }

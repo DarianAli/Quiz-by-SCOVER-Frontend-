@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { BookOpen, Search, Filter } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { SubjectCard } from "@/components/student/subject/subject-card";
 import { get } from "@/lib/api-bridge";
 import { getCookie } from "@/lib/client-cookie";
@@ -12,13 +12,17 @@ export default function SubjectsPage() {
     const [search, setSearch] = useState("");
     const [subjects, setSubjects] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const hasFetched = useRef(false)
 
     useEffect(() => {
+        if (hasFetched.current) return
+        hasFetched.current = true
+
         const fetchSubjects = async () => {
             try {
                 const token = getCookie("token") as string;
                 const res = await get(`${BASE_API_URL}/student/subjects`, token);
-                if (res.data?.status) {
+                if (res.data?.success) {
                     setSubjects(res.data.data);
                 }
             } catch (error) {

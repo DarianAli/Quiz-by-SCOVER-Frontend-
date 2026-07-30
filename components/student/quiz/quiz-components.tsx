@@ -65,11 +65,11 @@ type NavStatus = "NOT_ANSWERED" | "ANSWERED" | "MARKED_REVIEW" | "CURRENT";
 
 interface QuestionNavProps {
     total: number;
-    answers: Record<number, number>;       // questionId → optionId (index based here is question index 0-based)
-    markedReview: Set<number>;             // 0-based indices
+    answers: Record<string, string>;   // ✅ questionUuid -> optionUuid
+    markedReview: Set<number>;
     currentIndex: number;
     onJump: (index: number) => void;
-    questionIds?: number[];
+    questionIds?: string[];            // ✅ uuid[]
 }
 
 const NAV_STYLES: Record<NavStatus, string> = {

@@ -103,7 +103,7 @@ export default function ResultPage() {
             try {
                 const token = getCookie("token") as string;
                 const res = await get(`${BASE_API_URL}/student/result/${uuid}`, token);
-                if (res.data?.status) {
+                if (res.data?.success) {
                     setResult(res.data.data);
                 } else {
                     console.error("Failed to load result");

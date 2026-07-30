@@ -70,7 +70,7 @@ export default function ReviewPage() {
             try {
                 const token = getCookie("token") as string;
                 const res = await get(`${BASE_API_URL}/student/review/${uuid}`, token);
-                if (res.data?.status) {
+                if (res.data?.success) {
                     setReview(res.data.data);
                 } else {
                     console.error("Failed to load review");

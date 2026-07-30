@@ -12,8 +12,8 @@ interface QuizBasicInfoPanelProps {
   onClose: () => void
   onContinue: (data: {
     quiz_title: string
-    classId: number
-    subjectId: number
+    classId: string
+    subjectId: string
     difficulty: Difficulty
     duration: number
     status: "DRAFT" | "PUBLISHED"
@@ -26,8 +26,8 @@ const difficultyOptions: Difficulty[] = [Difficulty.EASY, Difficulty.MEDIUM, Dif
  
 export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBasicInfoPanelProps) {
   const [quizTitle, setQuizTitle] = useState("")
-  const [classId, setClassId] = useState<number | "">("")
-  const [subjectId, setSubjectId] = useState<number | "">("")
+  const [classId, setClassId] = useState<string>("")     // uuid class
+  const [subjectId, setSubjectId] = useState<string>("") // uuid subject
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.MEDIUM)
   const [duration, setDuration] = useState(45)
   const [status, setStatus] = useState<"DRAFT" | "PUBLISHED">("DRAFT")
@@ -39,59 +39,58 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
 
   useEffect(() => {
     if (open) {
-      const fetchData = async () => {
-        try {
-          const token = getCookie("token") as string
-          const [resClass, resSub] = await Promise.all([
-            get(`${BASE_API_URL}/class/all`, token),
-            get(`${BASE_API_URL}/subject/all`, token)
-          ])
-          if (resClass.data?.status) setClasses(resClass.data.data)
-          if (resSub.data?.status) setSubjects(resSub.data.data)
-        } catch (error) {
-          console.error("Failed to fetch classes/subjects", error)
+        const fetchData = async () => {
+            const token = getCookie("token") as string
+
+            try {
+                const resClass = await get(`${BASE_API_URL}/class/all`, token)
+                if (resClass.data?.success) setClasses(resClass.data.data ?? [])
+            } catch (error) {
+                console.error("Failed to fetch classes", error)
+            }
+
+            try {
+                const resSub = await get(`${BASE_API_URL}/subject/all`, token)
+                if (resSub.data?.success) setSubjects(resSub.data.data ?? [])
+            } catch (error) {
+                console.error("Failed to fetch subjects", error)
+            }
         }
-      }
-      fetchData()
+        fetchData()
     }
   }, [open])
 
-  // Subject difilter berdasarkan class yang dipilih, lewat relasi classes di dalam subject (kalau ada)
+  // Subject difilter berdasarkan class yang dipilih, dicocokkan lewat uuid class
+  // (subject-controller sekarang mengembalikan subject.classes sebagai { uuid, class_name, class_program })
   const availableSubjects = useMemo(() => {
     if (!classId) return []
-    // Filter subjects that belong to the selected classId. 
-    // The subject API may return classes or subjectClass array inside each subject.
     return subjects.filter((s) => {
-      // If subject has a classes array, check if any class matches
       if (s.classes && Array.isArray(s.classes)) {
-        return s.classes.some((c: any) => c.id === classId)
-      }
-      // If subject has subjectClass array
-      if (s.subjectClass && Array.isArray(s.subjectClass)) {
-        return s.subjectClass.some((sc: any) => sc.classId === classId)
+        return s.classes.some((c: any) => c.uuid === classId)
       }
       // fallback just return all for now if no relation mapping
       return true
     })
   }, [classId, subjects])
  
-  const [retakePolicy, setRetakePolicy] = useState<"ONCE" | "MULTIPLE">("ONCE")
-  const [maxAttempts, setMaxAttempts] = useState(1)
+  const [retakePolicy, setRetakePolicy] = useState<"ONCE" | "LIMITED" | "UNLIMITED">("ONCE")
+  const [maxAttempts, setMaxAttempts] = useState<string>("1") // string agar input bisa dikosongkan tanpa bug leading-zero
 
-  const canContinue = quizTitle.trim().length > 0 && classId !== "" && subjectId !== ""
+  const maxAttemptsValid = retakePolicy !== "LIMITED" || (maxAttempts !== "" && Number(maxAttempts) >= 1)
+  const canContinue = quizTitle.trim().length > 0 && classId !== "" && subjectId !== "" && maxAttemptsValid
  
   const handleContinue = () => {
     if (!canContinue) return
     onContinue({
       quiz_title: quizTitle,
-      classId: classId as number,
-      subjectId: subjectId as number,
+      classId: classId,
+      subjectId: subjectId,
       difficulty,
       duration,
       status,
       description,
       retake_policy: retakePolicy,
-      max_attempts: maxAttempts
+      max_attempts: retakePolicy === "LIMITED" ? Number(maxAttempts) : null,
     } as any) // Type assertion because we need to update QuizDashboardProps too
   }
  
@@ -123,14 +122,14 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
             <select
               value={classId}
               onChange={(e) => {
-                setClassId(e.target.value ? Number(e.target.value) : "")
+                setClassId(e.target.value)
                 setSubjectId("")
               }}
               className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/10"
             >
               <option value="">Select class</option>
               {classes.map((c) => (
-                <option key={c.id || c.uuid} value={c.id}>{c.class_name}</option>
+                <option key={c.uuid} value={c.uuid}>{c.class_name}</option>
               ))}
             </select>
           </Field>
@@ -138,13 +137,13 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
           <Field label="Subject">
             <select
               value={subjectId}
-              onChange={(e) => setSubjectId(e.target.value ? Number(e.target.value) : "")}
+              onChange={(e) => setSubjectId(e.target.value)}
               disabled={!classId}
               className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white disabled:bg-slate-50 disabled:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
             >
               <option value="">{classId ? "Select subject" : "Select a class first"}</option>
               {availableSubjects.map((s) => (
-                <option key={s.id || s.uuid} value={s.id}>{s.subject_name}</option>
+                <option key={s.uuid} value={s.uuid}>{s.subject_name}</option>
               ))}
             </select>
           </Field>
@@ -208,7 +207,7 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
 
           <Field label="Retake Policy">
             <div className="flex gap-2 mb-2">
-              {(["ONCE", "MULTIPLE"] as const).map((p) => (
+              {(["ONCE", "LIMITED", "UNLIMITED"] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
@@ -219,19 +218,24 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
                       : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
                   }`}
                 >
-                  {p === "ONCE" ? "Sekali Coba" : "Berkali-kali"}
+                  {p === "ONCE" ? "Sekali Coba" : p === "LIMITED" ? "Terbatas" : "Bebas"}
                 </button>
               ))}
             </div>
-            {retakePolicy === "MULTIPLE" && (
-              <input
-                type="number"
-                min={1}
-                value={maxAttempts}
-                onChange={(e) => setMaxAttempts(Number(e.target.value))}
-                placeholder="Maksimal Coba (e.g. 3)"
-                className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
-              />
+            {retakePolicy === "LIMITED" && (
+              <>
+                <input
+                  type="number"
+                  min={1}
+                  value={maxAttempts}
+                  onChange={(e) => setMaxAttempts(e.target.value)}
+                  placeholder="Maksimal Coba (e.g. 3)"
+                  className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+                />
+                {!maxAttemptsValid && (
+                  <p className="text-xs text-red-500 mt-1">Isi jumlah maksimal percobaan (minimal 1).</p>
+                )}
+              </>
             )}
           </Field>
  
