@@ -128,7 +128,7 @@ export default function StudentDashboard() {
     const {
         student, stats, strongest_subject, weakest_subject,
         recent_quizzes, in_progress_quizzes, subject_mastery,
-        weekly_scores, recent_activities,
+        weekly_scores, recent_activities, module_progress,
     } = data;
 
     return (
@@ -244,6 +244,37 @@ export default function StudentDashboard() {
             {in_progress_quizzes?.length > 0 && (
                 <Section title="Lanjutkan Belajar" subtitle="Kuis yang belum kamu selesaikan">
                     <ContinueLearning data={in_progress_quizzes} />
+                </Section>
+            )}
+
+            {/* Learning Progress (Module Progress) */}
+            {module_progress?.length > 0 && (
+                <Section title="Learning Progress" subtitle="Progres modul yang sedang kamu pelajari">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {module_progress.map((mp: any) => (
+                            <div key={mp.module_uuid} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] flex flex-col gap-3">
+                                <div>
+                                    <p className="text-xs text-blue-600 font-semibold mb-1 uppercase tracking-wider">{mp.subject_name}</p>
+                                    <h4 className="text-sm font-bold text-gray-900">{mp.module_name}</h4>
+                                </div>
+                                <div className="mt-auto">
+                                    <div className="flex justify-between items-center mb-1.5">
+                                        <span className="text-xs text-gray-500 font-medium">Progres</span>
+                                        <span className="text-xs font-bold text-gray-700">{mp.progress_percentage}%</span>
+                                    </div>
+                                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                                        <motion.div
+                                            initial={{ width: 0 }}
+                                            animate={{ width: `${mp.progress_percentage}%` }}
+                                            transition={{ duration: 1, ease: "easeOut" }}
+                                            className="h-full bg-gradient-to-r from-[#174EA6] to-[#1D61D2] rounded-full"
+                                        />
+                                    </div>
+                                    <p className="text-[11px] text-gray-400 mt-2 text-right">{mp.completed} dari {mp.total} Kuis Selesai</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </Section>
             )}
 

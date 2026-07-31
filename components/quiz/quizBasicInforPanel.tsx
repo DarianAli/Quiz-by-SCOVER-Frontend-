@@ -14,6 +14,7 @@ interface QuizBasicInfoPanelProps {
     quiz_title: string
     classId: string
     subjectId: string
+    moduleId: string
     difficulty: Difficulty
     duration: number
     status: "DRAFT" | "PUBLISHED"
@@ -28,6 +29,7 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
   const [quizTitle, setQuizTitle] = useState("")
   const [classId, setClassId] = useState<string>("")     // uuid class
   const [subjectId, setSubjectId] = useState<string>("") // uuid subject
+  const [moduleId, setModuleId] = useState<string>("") // uuid module
   const [difficulty, setDifficulty] = useState<Difficulty>(Difficulty.MEDIUM)
   const [duration, setDuration] = useState(45)
   const [status, setStatus] = useState<"DRAFT" | "PUBLISHED">("DRAFT")
@@ -36,6 +38,7 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
 
   const [classes, setClasses] = useState<any[]>([])
   const [subjects, setSubjects] = useState<any[]>([])
+  const [modules, setModules] = useState<any[]>([])
 
   useEffect(() => {
     if (open) {
@@ -60,6 +63,24 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
     }
   }, [open])
 
+  useEffect(() => {
+    if (!subjectId) {
+      setModules([])
+      setModuleId("")
+      return
+    }
+    const fetchModules = async () => {
+      const token = getCookie("token") as string
+      try {
+        const res = await get(`${BASE_API_URL}/module/subject/${subjectId}`, token)
+        if (res.data?.success) setModules(res.data.data.modules ?? [])
+      } catch (error) {
+        console.error("Failed to fetch modules", error)
+      }
+    }
+    fetchModules()
+  }, [subjectId])
+
   // Subject difilter berdasarkan class yang dipilih, dicocokkan lewat uuid class
   // (subject-controller sekarang mengembalikan subject.classes sebagai { uuid, class_name, class_program })
   const availableSubjects = useMemo(() => {
@@ -77,7 +98,7 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
   const [maxAttempts, setMaxAttempts] = useState<string>("1") // string agar input bisa dikosongkan tanpa bug leading-zero
 
   const maxAttemptsValid = retakePolicy !== "LIMITED" || (maxAttempts !== "" && Number(maxAttempts) >= 1)
-  const canContinue = quizTitle.trim().length > 0 && classId !== "" && subjectId !== "" && maxAttemptsValid
+  const canContinue = quizTitle.trim().length > 0 && classId !== "" && subjectId !== "" && moduleId !== "" && maxAttemptsValid
  
   const handleContinue = () => {
     if (!canContinue) return
@@ -85,6 +106,7 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
       quiz_title: quizTitle,
       classId: classId,
       subjectId: subjectId,
+      moduleId: moduleId,
       difficulty,
       duration,
       status,
@@ -144,6 +166,20 @@ export default function QuizBasicInfoPanel({ open, onClose, onContinue }: QuizBa
               <option value="">{classId ? "Select subject" : "Select a class first"}</option>
               {availableSubjects.map((s) => (
                 <option key={s.uuid} value={s.uuid}>{s.subject_name}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Module">
+            <select
+              value={moduleId}
+              onChange={(e) => setModuleId(e.target.value)}
+              disabled={!subjectId}
+              className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm bg-white disabled:bg-slate-50 disabled:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+            >
+              <option value="">{subjectId ? "Select module" : "Select a subject first"}</option>
+              {modules.map((m) => (
+                <option key={m.uuid} value={m.uuid}>{m.module_name}</option>
               ))}
             </select>
           </Field>

@@ -7,8 +7,7 @@ import SectionTitle from "@/components/dashboard/SectionTitle";
 import SubjectCard from "@/components/dashboard/SubjectCard";
 import { LeaderboardSection } from "@/components/dashboard/Leaderboard";
 import { RecentActivityTable } from "@/components/dashboard/RecentActivityTable";
-
-
+import { pickSubjectTheme } from "@/lib/theme/subject-visuals";
 
 import { useEffect, useState } from "react";
 import { get } from "@/lib/api-bridge";
@@ -27,7 +26,7 @@ export default function TeacherDashboard() {
             setIsLoading(true);
             try {
                 const token = getCookie("token") as string;
-                
+
                 // Fetch Dashboard Stats & Recent Submissions
                 const resDash = await get(`${BASE_API_URL}/tentor/dashboard`, token);
                 if (resDash.data?.success) {
@@ -72,20 +71,23 @@ export default function TeacherDashboard() {
             isCurrentUser: false,
         }));
 
-    const subjectCards = subjects.map((sub, idx) => {
-        const colors: Array<"blue" | "mint" | "yellow" | "purple" | "pink"> = ["blue", "mint", "yellow", "purple", "pink"];
-        return {
+    // Theme dipilih deterministik dari uuid subject (bukan index posisi) supaya warna
+    // tiap subject tetap konsisten dengan task page, dan tidak berubah saat urutan
+    // list berubah karena sorting "kelas saya" di bawah.
+    const subjectCards = subjects
+        .map((sub) => ({
             id: sub.uuid,
             name: sub.subject_name,
+            themeKey: pickSubjectTheme(sub.uuid),
             totalQuiz: sub.total_quiz ?? 0,
             totalStudents: sub.total_students ?? 0,
             tentors: sub.tentors ?? [],
             isMyClass: sub.is_my_class ?? false,
             annualGoal: sub.annual_quiz_target ?? null,
             curriculumProgress: sub.curriculum_progress ?? null,
-            color: colors[idx % colors.length],
-        };
-    });
+        }))
+        // Subject milik kelas tentor yang sedang login tampil paling pertama.
+        .sort((a, b) => (a.isMyClass === b.isMyClass ? 0 : a.isMyClass ? -1 : 1));
 
     const recentActivities = dashboardData?.recent_submissions?.map((s: any, idx: number) => ({
         id: `act-${idx}`,
@@ -146,18 +148,18 @@ export default function TeacherDashboard() {
                         {subjectCards.length > 0 ? subjectCards.map((sub) => (
                             <Link
                                 key={sub.id}
-                                href="/tentor/tasks"
+                                href={`/tentor/subjects/${sub.id}`}
                                 className="snap-start shrink-0 w-[290px] sm:w-[310px]"
                             >
                                 <SubjectCard
                                     subject={sub.name}
+                                    themeKey={sub.themeKey}
                                     totalQuiz={sub.totalQuiz}
                                     totalStudents={sub.totalStudents}
                                     tentors={sub.tentors}
                                     isMyClass={sub.isMyClass}
                                     annualGoal={sub.annualGoal}
                                     curriculumProgress={sub.curriculumProgress}
-                                    color={sub.color}
                                 />
                             </Link>
                         )) : (

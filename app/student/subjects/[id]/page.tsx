@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Clock, BookOpen, TrendingUp, Filter } from "lucide-react";
+import { ArrowLeft, Clock, BookOpen, TrendingUp, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { QuizCard } from "@/components/student/subject/quiz-card";
 import { useParams } from "next/navigation";
@@ -23,6 +23,7 @@ export default function SubjectDetailPage() {
 
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
     const [diffFilter,   setDiffFilter]   = useState<DiffFilter>("ALL");
+    const [openModules, setOpenModules] = useState<Record<string, boolean>>({});
 
     const fetchedIdRef = useRef<string | null>(null)
 
@@ -36,6 +37,11 @@ export default function SubjectDetailPage() {
                 const res = await get(`${BASE_API_URL}/student/subjects/${id}`, token);
                 if (res.data?.success) {
                     setSubject(res.data.data);
+                    if (res.data.data.modules) {
+                        const initialOpen: Record<string, boolean> = {};
+                        res.data.data.modules.forEach((m: any) => initialOpen[m.uuid] = true);
+                        setOpenModules(initialOpen);
+                    }
                 }
             } catch (error) {
                 console.error("Failed to fetch subject detail", error);
@@ -176,12 +182,49 @@ export default function SubjectDetailPage() {
                 )}
             </motion.div>
 
-            {/* Quiz Grid */}
+            {/* Quiz Grid Grouped by Module */}
             {filtered.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filtered.map((quiz: any, i: number) => (
-                        <QuizCard key={quiz.uuid || quiz.id} quiz={quiz} subjectUuid={subject.uuid} index={i} />
-                    ))}
+                <div className="space-y-6">
+                    {subject.modules?.map((mod: any) => {
+                        const moduleQuizzes = mod.quizzes.filter((q: any) => filtered.some((fq: any) => fq.uuid === q.uuid));
+                        if (moduleQuizzes.length === 0) return null;
+
+                        const isOpen = openModules[mod.uuid];
+
+                        return (
+                            <div key={mod.uuid} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                {/* Accordion Header */}
+                                <button
+                                    onClick={() => setOpenModules(prev => ({ ...prev, [mod.uuid]: !prev[mod.uuid] }))}
+                                    className="w-full flex items-center justify-between p-5 bg-gray-50/50 hover:bg-gray-50 transition-colors"
+                                >
+                                    <div className="text-left">
+                                        <h3 className="text-lg font-bold text-gray-900">{mod.module_name}</h3>
+                                        {mod.description && (
+                                            <p className="text-sm text-gray-500 mt-1">{mod.description}</p>
+                                        )}
+                                        <div className="text-xs font-medium text-gray-400 mt-2">
+                                            {moduleQuizzes.length} Kuis
+                                        </div>
+                                    </div>
+                                    <div className="p-2 bg-white rounded-full shadow-sm border border-gray-100 text-gray-400">
+                                        {isOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                    </div>
+                                </button>
+
+                                {/* Accordion Content */}
+                                {isOpen && (
+                                    <div className="p-5 border-t border-gray-100 bg-white">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {moduleQuizzes.map((quiz: any, i: number) => (
+                                                <QuizCard key={quiz.uuid || quiz.id} quiz={quiz} subjectUuid={subject.uuid} index={i} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             ) : (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
