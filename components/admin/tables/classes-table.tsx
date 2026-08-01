@@ -120,14 +120,14 @@ export function ClassesTable({
                 </td>
               </tr>
             ) : (
-              paginatedClasses.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+              paginatedClasses.map((item, idx) => (
+                <tr key={item.id ?? item.uuid ?? `class-row-${idx}`} className="hover:bg-slate-50/80 transition-colors group">
                   <td className="py-3.5 px-3 font-bold text-slate-900">
                     {item.class_name}
                   </td>
                   <td className="py-3.5 px-3">
-                    <Badge variant={item.class_program === "UTBK" ? "primary" : "gold"}>
-                      {item.class_program || "General"}
+                    <Badge variant={item.class_program === "UTBK" ? "primary" : item.class_program === "SKD" ? "gold" : "outline"}>
+                      {item.class_program || "GENERAL"}
                     </Badge>
                   </td>
                   <td className="py-3.5 px-3 text-slate-600 font-medium">

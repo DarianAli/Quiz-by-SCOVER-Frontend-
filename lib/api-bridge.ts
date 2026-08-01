@@ -107,11 +107,11 @@ export const put = async (url: string, data: any, token?: string) => {
     }
 }
 
-export const drop = async (url: string, token: string) => {
+export const drop = async (url: string, token?: string) => {
     try {
         let result = await axiosInstance.delete(url, {
             headers: {
-                "Authorization": `Bearer ${token}`
+                ...(token ? { "Authorization": `Bearer ${token}` } : {})
             }
         })
 

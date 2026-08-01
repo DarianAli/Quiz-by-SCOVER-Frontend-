@@ -1,5 +1,5 @@
 export type Role = "ADMIN" | "STUDENT" | "TENTOR";
-export type ClassProgram = "UTBK" | "SKD";
+export type ClassProgram = "UTBK" | "SKD" | "GENERAL";
 export type QuizStatus = "DRAFT" | "PUBLISHED";
 export type Difficulty = "EASY" | "MEDIUM" | "HARD";
 export type RetakePolicy = "ONCE" | "LIMITED" | "UNLIMITED";

@@ -44,7 +44,8 @@ export const dashboardService = {
         const percentage = Math.min(100, (completed / target) * 100);
 
         return {
-          id: sub.id,
+          id: sub.id ?? sub.uuid ?? `sub-${sub.subject_name}`,
+          uuid: sub.uuid,
           subject_name: sub.subject_name,
           completed_quizzes: completed,
           annual_quiz_target: target,

@@ -8,6 +8,7 @@ import {
     BookOpen, Send, AlertCircle,
 } from "lucide-react";
 import { DifficultyBadge } from "@/components/student/shared/badge";
+import { Difficulty } from "@/app/types";
 import {
     QuizTimer,
     QuestionNavigator,
@@ -281,7 +282,7 @@ export default function QuizPage() {
                             </span>
                         </div>
                         {/* ✅ optional chaining — tidak crash jika quiz.difficulty undefined */}
-                        <DifficultyBadge difficulty={quiz?.difficulty ?? "EASY"} />
+                        <DifficultyBadge difficulty={(quiz?.difficulty as Difficulty) ?? Difficulty.EASY} />
                     </div>
 
                     {/* Right: timer + finish */}
@@ -337,7 +338,7 @@ export default function QuizPage() {
                                         </span>
                                         <div className="flex items-center gap-2">
                                             {/* ✅ optional chaining agar tidak crash */}
-                                            <DifficultyBadge difficulty={currentQuestion?.difficulty ?? "EASY"} />
+                                            <DifficultyBadge difficulty={(currentQuestion?.difficulty as Difficulty) ?? Difficulty.EASY} />
                                             <span className="text-[11px] text-gray-300">{currentQuestion?.poin ?? 0} poin</span>
                                         </div>
                                     </div>

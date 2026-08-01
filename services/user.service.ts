@@ -24,7 +24,7 @@ export const userService = {
     return await put(`/user/update/${id}`, data);
   },
 
-  deleteUser: async (id: number, token: string) => {
-    return await drop(`/user/delete/${id}`, token);
+  deleteUser: async (id: number) => {
+    return await drop(`/user/delete/${id}`);
   },
 };

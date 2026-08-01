@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { DashboardLayout } from "@/components/admin/layout/dashboard-layout";
 import { DashboardHeader } from "@/components/admin/dashboard/dashboard-header";
 import { StatCards } from "@/components/admin/dashboard/stat-cards";
 import { SubjectCard } from "@/components/admin/dashboard/subject-card";
@@ -12,10 +11,13 @@ import { CreateClassDialog } from "@/components/admin/dialogs/create-class-dialo
 import { CreateUserDialog } from "@/components/admin/dialogs/create-user-dialog";
 import { CreateSubjectDialog } from "@/components/admin/dialogs/create-subject-dialog";
 import { BulkImportDialog } from "@/components/admin/dialogs/bulk-import-dialog";
+import { ConfirmDeleteDialog } from "@/components/admin/dialogs/confirm-delete-dialog";
 import { dashboardService } from "@/services/dashboard.service";
 import { classService } from "@/services/class.service";
 import { userService } from "@/services/user.service";
-import { Target, Layers } from "lucide-react";
+import { ClassEntity } from "@/types/admin";
+import { Target } from "lucide-react";
+import { toast } from "react-toastify";
 
 export default function AdminDashboardPage() {
   const queryClient = useQueryClient();
@@ -25,6 +27,10 @@ export default function AdminDashboardPage() {
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [isCreateSubjectOpen, setIsCreateSubjectOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+
+  // Delete Class state
+  const [deleteClassTarget, setDeleteClassTarget] = useState<ClassEntity | null>(null);
+  const [isDeletingClass, setIsDeletingClass] = useState(false);
 
   // TanStack Query Data Fetching
   const { data: stats, isLoading: isLoadingStats } = useQuery({
@@ -51,9 +57,31 @@ export default function AdminDashboardPage() {
     queryClient.invalidateQueries({ queryKey: ["admin"] });
   };
 
+  // Handle class delete confirmation
+  const handleDeleteClassClick = (classId: number) => {
+    const target = classesList.find((c) => c.id === classId) ?? null;
+    setDeleteClassTarget(target);
+  };
+
+  const handleDeleteClassConfirm = async () => {
+    if (!deleteClassTarget) return;
+    setIsDeletingClass(true);
+    try {
+      await classService.deleteClass(deleteClassTarget.id);
+      toast.success(`Class "${deleteClassTarget.class_name}" deleted successfully.`);
+      setDeleteClassTarget(null);
+      refreshAllData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? "Failed to delete class.";
+      toast.error(msg);
+    } finally {
+      setIsDeletingClass(false);
+    }
+  };
+
   return (
-    <DashboardLayout>
-      {/* Step 5: Dashboard Header with Welcome & Quick Actions */}
+    <div className="space-y-8">
+      {/* Dashboard Header with Welcome & Quick Actions */}
       <DashboardHeader
         adminName="Super Admin"
         onOpenCreateClass={() => setIsCreateClassOpen(true)}
@@ -62,10 +90,10 @@ export default function AdminDashboardPage() {
         onOpenBulkImport={() => setIsBulkImportOpen(true)}
       />
 
-      {/* Step 5: High-level KPI Stat Cards */}
+      {/* High-level KPI Stat Cards */}
       <StatCards stats={stats} isLoading={isLoadingStats} />
 
-      {/* Feature 4: Annual Subject Progress Grid */}
+      {/* Annual Subject Progress Grid */}
       <section className="mb-10">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -90,11 +118,12 @@ export default function AdminDashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {subjectsProgress.map((sub) => (
+            {subjectsProgress.map((sub, idx) => (
               <SubjectCard
-                key={sub.id}
+                key={sub.id ?? sub.uuid ?? `sub-${idx}`}
                 subject={sub}
                 onEdit={() => setIsCreateSubjectOpen(true)}
+                onDeleteSuccess={refreshAllData}
               />
             ))}
           </div>
@@ -103,28 +132,29 @@ export default function AdminDashboardPage() {
 
       {/* Main 2-Column Section: Classes Datatable & Recent Users Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-        {/* Feature 6: Classes Table (Spans 2 columns on desktop) */}
+        {/* Classes Table (Spans 2 columns on desktop) */}
         <div className="lg:col-span-2">
           <ClassesTable
             classes={classesList}
             isLoading={isLoadingClasses}
             onEdit={() => setIsCreateClassOpen(true)}
-            onDelete={(id) => console.log("Delete class", id)}
+            onDelete={handleDeleteClassClick}
             onView={(id) => console.log("View class", id)}
           />
         </div>
 
-        {/* Feature 7: Recent Users Roster (Right column) */}
+        {/* Recent Users Roster (Right column) */}
         <div className="lg:col-span-1 h-full">
           <RecentUsersRoster
             users={usersList}
             isLoading={isLoadingUsers}
             onAddUserClick={() => setIsCreateUserOpen(true)}
+            onDeleteSuccess={refreshAllData}
           />
         </div>
       </div>
 
-      {/* Step 7: Interactive Modals */}
+      {/* Interactive Modals */}
       <CreateClassDialog
         isOpen={isCreateClassOpen}
         onClose={() => setIsCreateClassOpen(false)}
@@ -149,6 +179,17 @@ export default function AdminDashboardPage() {
         isOpen={isBulkImportOpen}
         onClose={() => setIsBulkImportOpen(false)}
       />
-    </DashboardLayout>
+
+      {/* Delete Class Confirmation Dialog */}
+      <ConfirmDeleteDialog
+        isOpen={!!deleteClassTarget}
+        onClose={() => setDeleteClassTarget(null)}
+        onConfirm={handleDeleteClassConfirm}
+        isDeleting={isDeletingClass}
+        title={`Delete "${deleteClassTarget?.class_name}"?`}
+        description="This will permanently remove the class and detach all enrolled students and assigned subjects. This action cannot be undone."
+        confirmLabel="Delete Class"
+      />
+    </div>
   );
 }

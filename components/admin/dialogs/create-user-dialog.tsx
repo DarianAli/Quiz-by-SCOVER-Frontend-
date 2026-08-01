@@ -21,7 +21,7 @@ const singleUserSchema = z.object({
   phone_number: z.string().optional(),
   parent_full_name: z.string().optional(),
   parent_phone_number: z.string().optional(),
-  role: z.enum(["STUDENT", "TENTOR", "ADMIN"]),
+  role: z.enum(["STUDENT", "TENTOR"]),
   classId: z.string().optional(),
 });
 
@@ -46,6 +46,7 @@ export function CreateUserDialog({
   const {
     register,
     handleSubmit,
+    watch,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<SingleUserFormValues>({
@@ -63,6 +64,8 @@ export function CreateUserDialog({
     },
   });
 
+  const selectedRole = watch("role");
+
   // Bulk Upload State
   const [parsedRows, setParsedRows] = useState<BulkUserRow[]>([]);
   const [csvFileName, setCsvFileName] = useState<string>("");
@@ -73,7 +76,13 @@ export function CreateUserDialog({
       const { post } = await import("@/lib/api-bridge");
       const payload: any = { ...data };
       if (data.classId) payload.classId = parseInt(data.classId, 10);
-      
+
+      // Omit parent details for Tentors
+      if (data.role === "TENTOR") {
+        delete payload.parent_full_name;
+        delete payload.parent_phone_number;
+      }
+
       await post("/user/register", payload);
       toast.success(`User "${data.full_name}" registered successfully!`);
       reset();
@@ -131,7 +140,7 @@ export function CreateUserDialog({
           full_name,
           email,
           password,
-          role: ["STUDENT", "TENTOR", "ADMIN"].includes(role) ? role : "STUDENT",
+          role: ["STUDENT", "TENTOR"].includes(role) ? role : "STUDENT",
           isValid: errorsList.length === 0,
           errors: errorsList,
         });
@@ -217,15 +226,16 @@ export function CreateUserDialog({
               <select {...register("role")} className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 focus:border-[#1D61D2] focus:outline-none">
                 <option value="STUDENT">Student</option>
                 <option value="TENTOR">Tentor / Instructor</option>
-                <option value="ADMIN">Administrator</option>
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            <Input label="Parent Full Name" placeholder="e.g. Bambang Pratama" {...register("parent_full_name")} />
-            <Input label="Parent Phone" placeholder="e.g. 08198765432" {...register("parent_phone_number")} />
-          </div>
+          {selectedRole === "STUDENT" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <Input label="Parent Full Name" placeholder="e.g. Bambang Pratama" {...register("parent_full_name")} />
+              <Input label="Parent Phone" placeholder="e.g. 08198765432" {...register("parent_phone_number")} />
+            </div>
+          )}
 
           <div className="space-y-1.5 pt-2">
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">Assign to Class (Optional)</label>

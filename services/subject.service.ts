@@ -3,24 +3,24 @@ import { SubjectEntity } from "@/types/admin";
 
 export const subjectService = {
   getAllSubjects: async (): Promise<SubjectEntity[]> => {
-    const res = await get("/subject");
+    const res = await get("/subject/all");
     return res.data?.data || res.data || [];
   },
 
   getSubjectById: async (id: number): Promise<SubjectEntity> => {
-    const res = await get(`/subject/${id}`);
+    const res = await get(`/subject/get/${id}`);
     return res.data?.data || res.data;
   },
 
   createSubject: async (data: { subject_name: string; annual_quiz_target: number; classIds?: number[] }) => {
-    return await post("/subject", data);
+    return await post("/subject/create", data);
   },
 
   updateSubject: async (id: number, data: { subject_name?: string; annual_quiz_target?: number }) => {
-    return await put(`/subject/${id}`, data);
+    return await put(`/subject/update-data/${id}`, data);
   },
 
-  deleteSubject: async (id: number, token: string) => {
-    return await drop(`/subject/${id}`, token);
+  deleteSubject: async (id: number) => {
+    return await drop(`/subject/delete-subject/${id}`);
   },
 };

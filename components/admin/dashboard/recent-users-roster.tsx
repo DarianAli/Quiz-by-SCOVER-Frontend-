@@ -1,24 +1,48 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { UserEntity } from "@/types/admin";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import { UserPlus, Users, ChevronRight } from "lucide-react";
+import { UserPlus, Users, ChevronRight, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { ConfirmDeleteDialog } from "@/components/admin/dialogs/confirm-delete-dialog";
+import { userService } from "@/services/user.service";
+import { toast } from "react-toastify";
 
 interface RecentUsersRosterProps {
   users?: UserEntity[];
   isLoading?: boolean;
   onAddUserClick?: () => void;
+  onDeleteSuccess?: () => void;
 }
 
 export function RecentUsersRoster({
   users = [],
   isLoading = false,
   onAddUserClick,
+  onDeleteSuccess,
 }: RecentUsersRosterProps) {
+  const [deleteTarget, setDeleteTarget] = useState<UserEntity | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await userService.deleteUser(deleteTarget.id);
+      toast.success(`User "${deleteTarget.full_name}" deleted successfully.`);
+      setDeleteTarget(null);
+      onDeleteSuccess?.();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? "Failed to delete user.";
+      toast.error(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="rounded-2xl bg-white p-5 shadow-xs border border-slate-100/80 flex flex-col justify-between h-full">
       <div>
@@ -28,7 +52,7 @@ export function RecentUsersRoster({
             <h3 className="font-extrabold text-base text-slate-900 tracking-tight flex items-center gap-2">
               <Users className="w-4 h-4 text-[#1D61D2]" /> Recent Registrations
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">Newly onboarded students & tentors</p>
+            <p className="text-xs text-slate-400 mt-0.5">Newly onboarded students &amp; tentors</p>
           </div>
 
           {onAddUserClick && (
@@ -64,10 +88,9 @@ export function RecentUsersRoster({
                   key={user.id}
                   initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100/60"
+                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition-colors border border-slate-100/60 group"
                 >
                   <div className="flex items-center gap-3">
-                    {/* User Avatar */}
                     {user.photoProfile ? (
                       <img
                         src={user.photoProfile}
@@ -90,21 +113,32 @@ export function RecentUsersRoster({
                     </div>
                   </div>
 
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge
-                      variant={
-                        user.role === "STUDENT"
-                          ? "primary"
-                          : user.role === "TENTOR"
-                          ? "gold"
-                          : "secondary"
-                      }
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge
+                        variant={
+                          user.role === "STUDENT"
+                            ? "primary"
+                            : user.role === "TENTOR"
+                            ? "gold"
+                            : "secondary"
+                        }
+                      >
+                        {user.role}
+                      </Badge>
+                      <span className="text-[9px] text-slate-400">
+                        {formatDate(user.created_at)}
+                      </span>
+                    </div>
+
+                    {/* Delete button — visible on hover */}
+                    <button
+                      onClick={() => setDeleteTarget(user)}
+                      className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-300 hover:bg-rose-50 hover:text-rose-500 transition-all"
+                      title="Delete user"
                     >
-                      {user.role}
-                    </Badge>
-                    <span className="text-[9px] text-slate-400">
-                      {formatDate(user.created_at)}
-                    </span>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </motion.div>
               );
@@ -122,6 +156,17 @@ export function RecentUsersRoster({
           View All Users Roster <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
         </a>
       </div>
+
+      {/* Confirm delete — uses fixed positioning so nesting here is safe */}
+      <ConfirmDeleteDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        title={`Delete "${deleteTarget?.full_name}"?`}
+        description="This will permanently remove the user account. This action cannot be undone."
+        confirmLabel="Delete User"
+      />
     </div>
   );
 }

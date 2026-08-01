@@ -11,6 +11,7 @@ import { BookOpen, Check } from "lucide-react";
 import { toast } from "react-toastify";
 import { ClassEntity } from "@/types/admin";
 import { cn } from "@/lib/utils";
+import { subjectService } from "@/services/subject.service";
 
 const createSubjectSchema = z.object({
   subject_name: z.string().min(2, "Subject name must be at least 2 characters"),
@@ -55,8 +56,7 @@ export function CreateSubjectDialog({
 
   const onSubmit = async (data: CreateSubjectFormValues) => {
     try {
-      const { post } = await import("@/lib/api-bridge");
-      await post("/subject", {
+      await subjectService.createSubject({
         ...data,
         classIds: selectedClassIds,
       });

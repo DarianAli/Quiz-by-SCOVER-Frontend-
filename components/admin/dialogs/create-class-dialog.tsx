@@ -10,10 +10,12 @@ import { Button } from "@/components/ui/button";
 import { GraduationCap } from "lucide-react";
 import { toast } from "react-toastify";
 
+import { classService } from "@/services/class.service";
+
 const createClassSchema = z.object({
   class_name: z.string().min(2, "Class name must be at least 2 characters"),
-  class_program: z.enum(["UTBK", "SKD"], {
-    required_error: "Please select a program (UTBK or SKD)",
+  class_program: z.enum(["UTBK", "SKD", "GENERAL"], {
+    required_error: "Please select a program category",
   }),
 });
 
@@ -39,15 +41,13 @@ export function CreateClassDialog({
     resolver: zodResolver(createClassSchema),
     defaultValues: {
       class_name: "",
-      class_program: "UTBK",
+      class_program: "GENERAL",
     },
   });
 
   const onSubmit = async (data: CreateClassFormValues) => {
     try {
-      // Import API bridge service dynamically or call endpoint
-      const { post } = await import("@/lib/api-bridge");
-      await post("/class/add", data);
+      await classService.createClass(data);
       toast.success(`Class "${data.class_name}" created successfully!`);
       reset();
       onClose();
@@ -68,7 +68,7 @@ export function CreateClassDialog({
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 pt-2">
         <Input
           label="Class Name"
-          placeholder="e.g. UTBK Intensive Batch 1"
+          placeholder="e.g. GENERAL Intensive Batch 1"
           error={errors.class_name?.message}
           {...register("class_name")}
         />
@@ -77,8 +77,21 @@ export function CreateClassDialog({
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-600">
             Program Category
           </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="relative flex cursor-pointer rounded-xl border border-slate-200 p-3.5 hover:bg-slate-50 transition-colors has-[:checked]:border-[#1D61D2] has-[:checked]:bg-[#1D61D2]/5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <label className="relative flex cursor-pointer rounded-xl border border-slate-200 p-3 hover:bg-slate-50 transition-colors has-[:checked]:border-[#1D61D2] has-[:checked]:bg-[#1D61D2]/5">
+              <input
+                type="radio"
+                value="GENERAL"
+                className="sr-only"
+                {...register("class_program")}
+              />
+              <div className="flex flex-col">
+                <span className="text-sm font-bold text-slate-900">GENERAL</span>
+                <span className="text-xs text-slate-500">General Learning</span>
+              </div>
+            </label>
+
+            <label className="relative flex cursor-pointer rounded-xl border border-slate-200 p-3 hover:bg-slate-50 transition-colors has-[:checked]:border-[#1D61D2] has-[:checked]:bg-[#1D61D2]/5">
               <input
                 type="radio"
                 value="UTBK"
@@ -87,11 +100,11 @@ export function CreateClassDialog({
               />
               <div className="flex flex-col">
                 <span className="text-sm font-bold text-slate-900">UTBK</span>
-                <span className="text-xs text-slate-500">College Entrance Exam</span>
+                <span className="text-xs text-slate-500">College Exam</span>
               </div>
             </label>
 
-            <label className="relative flex cursor-pointer rounded-xl border border-slate-200 p-3.5 hover:bg-slate-50 transition-colors has-[:checked]:border-[#1D61D2] has-[:checked]:bg-[#1D61D2]/5">
+            <label className="relative flex cursor-pointer rounded-xl border border-slate-200 p-3 hover:bg-slate-50 transition-colors has-[:checked]:border-[#1D61D2] has-[:checked]:bg-[#1D61D2]/5">
               <input
                 type="radio"
                 value="SKD"
@@ -100,7 +113,7 @@ export function CreateClassDialog({
               />
               <div className="flex flex-col">
                 <span className="text-sm font-bold text-slate-900">SKD</span>
-                <span className="text-xs text-slate-500">Civil Service Selection</span>
+                <span className="text-xs text-slate-500">Civil Service</span>
               </div>
             </label>
           </div>

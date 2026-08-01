@@ -1,24 +1,45 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { SubjectProgressData } from "@/types/admin";
 import { ProgressRing } from "./progress-ring";
-import { Edit2, GraduationCap, Users, Target, BookOpen } from "lucide-react";
+import { Edit2, GraduationCap, Users, Target, BookOpen, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { ConfirmDeleteDialog } from "@/components/admin/dialogs/confirm-delete-dialog";
+import { subjectService } from "@/services/subject.service";
+import { toast } from "react-toastify";
 
 interface SubjectCardProps {
   subject: SubjectProgressData;
   onEdit?: (subjectId: number) => void;
+  onDeleteSuccess?: () => void;
 }
 
-export function SubjectCard({ subject, onEdit }: SubjectCardProps) {
+export function SubjectCard({ subject, onEdit, onDeleteSuccess }: SubjectCardProps) {
   const percentage = Math.round(subject.percentage);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Dynamic progress ring color based on completion percentage
   let progressColor = "#1D61D2"; // Royal blue
-  if (percentage >= 80) progressColor = "#10B981"; // Emerald green
-  else if (percentage >= 50) progressColor = "#F4C430"; // Gold
-  else if (percentage < 30) progressColor = "#F43F5E"; // Rose red
+  if (percentage >= 80) progressColor = "#10B981";       // Emerald green
+  else if (percentage >= 50) progressColor = "#F4C430";  // Gold
+  else if (percentage < 30) progressColor = "#F43F5E";   // Rose red
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await subjectService.deleteSubject(subject.id);
+      toast.success(`Subject "${subject.subject_name}" deleted.`);
+      setShowDeleteDialog(false);
+      onDeleteSuccess?.();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? "Failed to delete subject.";
+      toast.error(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <motion.div
@@ -26,10 +47,10 @@ export function SubjectCard({ subject, onEdit }: SubjectCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
       whileHover={{ y: -3, transition: { duration: 0.2 } }}
-      className="rounded-2xl bg-white p-5 shadow-xs border border-slate-100/80 hover:shadow-md hover:border-slate-200 transition-all flex flex-col justify-between"
+      className="rounded-2xl bg-white p-5 shadow-xs border border-slate-100/80 hover:shadow-md hover:border-slate-200 transition-all flex flex-col justify-between group"
     >
       <div>
-        {/* Card Header: Subject Name & Edit Button */}
+        {/* Card Header: Subject Name & Action Buttons */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-blue-50 text-[#1D61D2] flex items-center justify-center font-bold shrink-0">
@@ -45,15 +66,25 @@ export function SubjectCard({ subject, onEdit }: SubjectCardProps) {
             </div>
           </div>
 
-          {onEdit && (
+          {/* Action buttons */}
+          <div className="flex items-center gap-1">
+            {onEdit && (
+              <button
+                onClick={() => onEdit(subject.id)}
+                className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                title="Edit Subject"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
             <button
-              onClick={() => onEdit(subject.id)}
-              className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
-              title="Edit Subject"
+              onClick={() => setShowDeleteDialog(true)}
+              className="p-2 rounded-xl text-slate-400 hover:bg-rose-50 hover:text-rose-500 transition-colors"
+              title="Delete Subject"
             >
-              <Edit2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
             </button>
-          )}
+          </div>
         </div>
 
         {/* Middle Section: Circular Progress Ring & Quizzes Metric */}
@@ -91,6 +122,17 @@ export function SubjectCard({ subject, onEdit }: SubjectCardProps) {
           <span>{subject.students_count} Students</span>
         </div>
       </div>
+
+      {/* Confirm delete — uses fixed positioning so nesting here is safe */}
+      <ConfirmDeleteDialog
+        isOpen={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        title={`Delete "${subject.subject_name}"?`}
+        description="This will permanently remove the subject and all associated data. This action cannot be undone."
+        confirmLabel="Delete Subject"
+      />
     </motion.div>
   );
 }
