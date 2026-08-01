@@ -17,6 +17,7 @@ import {
 import { get, post } from "@/lib/api-bridge";
 import { getCookie } from "@/lib/client-cookie";
 import { BASE_API_URL } from "@/global";
+import { Difficulty } from "@/app/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface QuizOption {
@@ -32,6 +33,7 @@ interface QuizQuestion {
     question_text: string;
     question_image?: string;
     difficulty: string;
+    question_type?: string;
     poin: number;
     options: QuizOption[];
 }
@@ -43,6 +45,7 @@ interface QuizData {
     duration: number;
     subject_name?: string;
     subject?: { uuid: string; subject_name: string };
+    can_attempt?: boolean;
     questions: QuizQuestion[];
 }
 
@@ -76,7 +79,7 @@ export default function QuizPage() {
                 const token = getCookie("token") as string;
 
                 // 1. Fetch quiz details via student endpoint (UUID-based)
-                const quizRes = await get(`${BASE_API_URL}/quiz/${uuid}`, token);
+                const quizRes = await get(`${BASE_API_URL}/student/quiz/${uuid}`, token);
 
                 // ✅ Cek success dari body response (bukan hanya HTTP status)
                 if (!quizRes.data?.success) {
@@ -90,6 +93,13 @@ export default function QuizPage() {
                 // Update start time berdasarkan waktu server (jika resume)
                 if (quizData.questions.length === 0) {
                     setError("Quiz ini belum memiliki soal.");
+                    return;
+                }
+
+                // Cek apakah user diperbolehkan attempt (misal sudah mencapai attempt_limit)
+                if (quizData.can_attempt === false) {
+                    // Redirect ke halaman result
+                    router.replace(`/student/quiz/${uuid}/result`);
                     return;
                 }
 
@@ -109,15 +119,21 @@ export default function QuizPage() {
                 // saved_answers dari backend berisi { [questionsId]: optionsId } (integer internal)
                 // Kita perlu convert ke { [questionUuid]: optionUuid } menggunakan data quiz
                 if (attemptData.is_resume && attemptData.saved_answers) {
-                    const savedRaw: Record<number, number> = attemptData.saved_answers;
+                    const savedRaw: Record<number, number | string> = attemptData.saved_answers;
                     const restoredAnswers: Record<string, string> = {};
 
                     for (const q of quizData.questions) {
-                        const savedOptionId = savedRaw[q.idQuestion];
-                        if (savedOptionId !== undefined) {
-                            const matchedOption = q.options.find(o => o.idOption === savedOptionId);
-                            if (matchedOption) {
-                                restoredAnswers[q.uuid] = matchedOption.uuid;
+                        const savedAnswer = savedRaw[q.idQuestion];
+                        if (savedAnswer !== undefined) {
+                            if (typeof savedAnswer === "string") {
+                                // Essay answer_text
+                                restoredAnswers[q.uuid] = savedAnswer;
+                            } else {
+                                // Multiple choice optionId
+                                const matchedOption = q.options.find(o => o.idOption === savedAnswer);
+                                if (matchedOption) {
+                                    restoredAnswers[q.uuid] = matchedOption.uuid;
+                                }
                             }
                         }
                     }
@@ -147,19 +163,35 @@ export default function QuizPage() {
     const totalQuestions   = quiz?.questions?.length ?? 0;
     const answeredCount    = Object.keys(answers).length;
 
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     // ✅ Autosave jawaban menggunakan UUID — tidak ada integer ID di payload
-    const handleAnswer = useCallback(async (questionUuid: string, optionUuid: string) => {
-        setAnswers(prev => ({ ...prev, [questionUuid]: optionUuid }));
+    // Essay: debounced 600ms. Multiple choice: immediate.
+    const handleAnswer = useCallback((questionUuid: string, optionUuid?: string, answer_text?: string) => {
+        // Update local state immediately
+        setAnswers(prev => ({ ...prev, [questionUuid]: answer_text ?? (optionUuid as string) }));
         if (!quiz || !uuid) return;
 
-        try {
-            const token = getCookie("token") as string;
-            await post(`${BASE_API_URL}/quiz/${uuid}/answers`, {
-                questionUuid,
-                optionUuid,
-            }, token);
-        } catch (err) {
-            console.error("Failed to autosave answer", err);
+        const doSave = async () => {
+            try {
+                const token = getCookie("token") as string;
+                await post(`${BASE_API_URL}/quiz/${uuid}/answers`, {
+                    questionUuid,
+                    optionUuid,
+                    answer_text,
+                }, token);
+            } catch (err) {
+                console.error("Failed to autosave answer", err);
+            }
+        };
+
+        if (answer_text !== undefined) {
+            // Essay: debounce 600ms to avoid hammering the server on every keystroke
+            if (debounceRef.current) clearTimeout(debounceRef.current);
+            debounceRef.current = setTimeout(() => doSave(), 600);
+        } else {
+            // Multiple choice: save immediately
+            doSave();
         }
     }, [quiz, uuid]);
 
@@ -191,7 +223,7 @@ export default function QuizPage() {
             // ✅ Tidak ada idAttempt di URL — backend resolves via userId+quizId
             const res = await post(`${BASE_API_URL}/quiz/${uuid}/attempt/submit`, {}, token);
             if (res.data?.success) {
-                router.push(`/student/result/${uuid}`);
+                router.push(`/student/quiz/${uuid}/result`);
             } else {
                 alert(res.data?.message || "Gagal mengumpulkan quiz.");
                 setIsSubmitting(false);
@@ -253,9 +285,6 @@ export default function QuizPage() {
 
     const isMarked = markedReview.has(currentIndex);
 
-    // ✅ Gunakan UUID untuk lookup jawaban yang sudah dipilih (bukan integer)
-    const selectedOptionUuid = currentQuestion ? answers[currentQuestion.uuid] : undefined;
-
     return (
         <div className="min-h-full pb-10">
 
@@ -281,7 +310,7 @@ export default function QuizPage() {
                             </span>
                         </div>
                         {/* ✅ optional chaining — tidak crash jika quiz.difficulty undefined */}
-                        <DifficultyBadge difficulty={quiz?.difficulty ?? "EASY"} />
+                        <DifficultyBadge difficulty={(quiz?.difficulty as Difficulty) ?? "EASY"} />
                     </div>
 
                     {/* Right: timer + finish */}
@@ -337,7 +366,7 @@ export default function QuizPage() {
                                         </span>
                                         <div className="flex items-center gap-2">
                                             {/* ✅ optional chaining agar tidak crash */}
-                                            <DifficultyBadge difficulty={currentQuestion?.difficulty ?? "EASY"} />
+                                            <DifficultyBadge difficulty={(currentQuestion?.difficulty as Difficulty) ?? "EASY"} />
                                             <span className="text-[11px] text-gray-300">{currentQuestion?.poin ?? 0} poin</span>
                                         </div>
                                     </div>
@@ -354,46 +383,66 @@ export default function QuizPage() {
                                     )}
                                 </div>
 
-                                {/* Options */}
-                                <div className="px-5 md:px-7 py-5 space-y-3">
-                                    {currentQuestion?.options?.map((option, oi) => {
-                                        // ✅ Bandingkan UUID, bukan integer
-                                        const isSelected   = selectedOptionUuid === option.uuid;
-                                        const optionLabel  = String.fromCharCode(65 + oi); // A, B, C, D
+                                {/* Options / Answer Input */}
+                                {(() => {
+                                    const qType = currentQuestion?.question_type?.toUpperCase();
+                                    const isEssayType = qType === 'ESSAY' || qType === 'SHORT_ANSWER';
+
+                                    if (isEssayType) {
                                         return (
-                                            <motion.button
-                                                key={option.uuid}
-                                                whileTap={{ scale: 0.98 }}
-                                                onClick={() => currentQuestion && handleAnswer(currentQuestion.uuid, option.uuid)}
-                                                className={[
-                                                    "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left",
-                                                    "transition-all duration-200 group",
-                                                    isSelected
-                                                        ? "border-[#1D61D2] bg-[#EAF3FF] shadow-sm"
-                                                        : "border-gray-100 bg-white hover:border-[#93C5FD] hover:bg-[#F8FAFC]",
-                                                ].join(" ")}
-                                                aria-pressed={isSelected}
-                                                aria-label={`Pilihan ${optionLabel}: ${option.option_text}`}
-                                            >
-                                                <div className={[
-                                                    "shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all duration-200",
-                                                    isSelected
-                                                        ? "bg-[#1D61D2] text-white"
-                                                        : "bg-gray-100 text-gray-500 group-hover:bg-[#DBEAFE] group-hover:text-[#1D61D2]",
-                                                ].join(" ")}>
-                                                    {optionLabel}
-                                                </div>
-                                                <span className={`text-sm leading-relaxed ${isSelected ? "text-[#0d4669] font-semibold" : "text-gray-700"}`}>
-                                                    {option.option_text}
-                                                </span>
-                                                {option.option_image && (
-                                                    // eslint-disable-next-line @next/next/no-img-element
-                                                    <img src={option.option_image} alt="" className="ml-auto w-16 h-16 object-contain rounded-lg" />
-                                                )}
-                                            </motion.button>
+                                            <div className="px-5 md:px-7 py-5">
+                                                <textarea
+                                                    className="w-full min-h-[180px] p-4 rounded-xl border-2 border-gray-100 bg-white focus:border-[#1D61D2] focus:ring-4 focus:ring-[#1D61D2]/10 transition-all duration-200 resize-y text-sm text-gray-700 leading-relaxed outline-none placeholder:text-gray-300"
+                                                    placeholder="Ketik jawaban Anda di sini..."
+                                                    value={currentQuestion ? (answers[currentQuestion.uuid] || "") : ""}
+                                                    onChange={(e) => currentQuestion && handleAnswer(currentQuestion.uuid, undefined, e.target.value)}
+                                                />
+                                                <p className="text-xs text-gray-400 mt-2">Jawaban essay akan disimpan otomatis.</p>
+                                            </div>
                                         );
-                                    })}
-                                </div>
+                                    }
+
+                                    return (
+                                        <div className="px-5 md:px-7 py-5 space-y-3">
+                                            {currentQuestion?.options?.map((option, oi) => {
+                                                const isSelected = currentQuestion ? answers[currentQuestion.uuid] === option.uuid : false;
+                                                const optionLabel = String.fromCharCode(65 + oi);
+                                                return (
+                                                    <motion.button
+                                                        key={option.uuid}
+                                                        whileTap={{ scale: 0.98 }}
+                                                        onClick={() => currentQuestion && handleAnswer(currentQuestion.uuid, option.uuid)}
+                                                        className={[
+                                                            "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left",
+                                                            "transition-all duration-200 group",
+                                                            isSelected
+                                                                ? "border-[#1D61D2] bg-[#EAF3FF] shadow-sm"
+                                                                : "border-gray-100 bg-white hover:border-[#93C5FD] hover:bg-[#F8FAFC]",
+                                                        ].join(" ")}
+                                                        aria-pressed={isSelected}
+                                                        aria-label={`Pilihan ${optionLabel}: ${option.option_text}`}
+                                                    >
+                                                        <div className={[
+                                                            "shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black transition-all duration-200",
+                                                            isSelected
+                                                                ? "bg-[#1D61D2] text-white"
+                                                                : "bg-gray-100 text-gray-500 group-hover:bg-[#DBEAFE] group-hover:text-[#1D61D2]",
+                                                        ].join(" ")}>
+                                                            {optionLabel}
+                                                        </div>
+                                                        <span className={`text-sm leading-relaxed ${isSelected ? "text-[#0d4669] font-semibold" : "text-gray-700"}`}>
+                                                            {option.option_text}
+                                                        </span>
+                                                        {option.option_image && (
+                                                            // eslint-disable-next-line @next/next/no-img-element
+                                                            <img src={option.option_image} alt="" className="ml-auto w-16 h-16 object-contain rounded-lg" />
+                                                        )}
+                                                    </motion.button>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })()}
                             </motion.div>
                         </AnimatePresence>
                     </div>

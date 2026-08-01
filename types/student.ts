@@ -1,9 +1,14 @@
 /**
  * Domain types for the Student Tracking page.
  *
- * These shapes are designed to map 1:1 onto a future backend response, so the
- * dummy data in /data can be swapped for real API calls without touching any
- * component in /components/student-tracking.
+ * These shapes are designed to map 1:1 onto the backend response,
+ * so API calls can be made without touching any component.
+ *
+ * ──────────────────────────────────────────────────────────────────
+ * IMPORTANT: Module is now the primary learning unit.
+ * SubjectMastery is kept for backward compatibility but
+ * ModuleMastery is the canonical type going forward.
+ * ──────────────────────────────────────────────────────────────────
  */
 
 export type SubjectKey =
@@ -38,9 +43,9 @@ export interface Student {
   streakDays: number;
   trend: Trend;
   sparkline: SparklinePoint[];
-  strongestSubject: SubjectKey;
+  strongestSubject: string; // module_name or subject key
   strongestSubjectScore: number;
-  weakestSubject: SubjectKey;
+  weakestSubject: string;   // module_name or subject key
   weakestSubjectScore: number;
   atRisk: boolean;
   email: string;
@@ -60,16 +65,48 @@ export interface PerformanceHistory {
   semester: PerformancePoint[];
 }
 
-export interface SubjectMastery {
-  subject: SubjectKey;
+/**
+ * Module mastery — primary unit for learning progress tracking.
+ * Maps 1:1 to `moduleMasteryRaw` from tentor.service.ts
+ */
+export interface ModuleMastery {
+  /** Unique key — use module_name or uuid */
+  subject: string;
+  /** Display label: "Subject - Module" format */
   label: string;
-  mastery: number; // 0-100
+  /** Completion percentage 0-100 */
+  mastery: number;
+  /** Average score across completed quizzes (0 if none) */
+  average_score: number;
+  /** Number of quizzes completed in this module */
+  completed: number;
+  /** Total quizzes in this module */
+  total: number;
+  /** Subject name this module belongs to */
+  subject_name: string;
+  /** Module name */
+  module_name: string;
+}
+
+/**
+ * @deprecated Use ModuleMastery instead.
+ * Kept for backward compatibility with SubjectPerformance component.
+ */
+export interface SubjectMastery {
+  subject: string;
+  label: string;
+  mastery: number;
+  average_score?: number;
+  completed?: number;
+  total?: number;
+  subject_name?: string;
+  module_name?: string;
 }
 
 export interface FocusArea {
   id: string;
   topic: string;
-  subject: SubjectKey;
+  subject: string;
   subjectLabel: string;
   mastery: number; // 0-100
 }
@@ -79,7 +116,7 @@ export type QuizStatus = "completed" | "in_progress" | "missed";
 export interface QuizAttempt {
   id: string;
   quizName: string;
-  subject: SubjectKey;
+  subject: string; // can be subject name or SubjectKey
   date: string; // ISO timestamp
   score: number | null; // null when missed
   status: QuizStatus;
@@ -95,13 +132,15 @@ export interface LearningInsight {
 export interface StudentDetailBundle {
   student: Student;
   performance: PerformanceHistory;
-  subjectMastery: SubjectMastery[];
+  /** Module mastery list — primary learning unit */
+  subjectMastery: ModuleMastery[];
   focusAreas: FocusArea[];
   recentQuizzes: QuizAttempt[];
   insights: LearningInsight[];
 }
 
 export interface ClassOverview {
+  /** @alias totalStudents — use this field */
   totalStudents: number;
   className: string;
   averageScore: number;
@@ -111,7 +150,7 @@ export interface ClassOverview {
   atRiskThreshold: number;
   longestStreak: { name: string; days: number };
   averageCompletion: number;
-  needsAttention: number
+  needsAttention: number;
   totalQuizzes: number;
   activeQuizzes: number;
 }

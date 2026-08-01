@@ -15,6 +15,7 @@ import { WeeklyChart } from "@/components/student/dashboard/weekly-chart";
 import { SubjectMastery } from "@/components/student/dashboard/subject-mastery";
 import { RecentQuizList, ContinueLearning } from "@/components/student/dashboard/recent-quiz-list";
 import { LeaderboardSection } from "@/components/dashboard/Leaderboard";
+import { Pagination } from "@/components/shared/Pagination";
 
 import { get } from "@/lib/api-bridge";
 import { getCookie } from "@/lib/client-cookie";
@@ -72,35 +73,39 @@ export default function StudentDashboard() {
     const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [activityPage, setActivityPage] = useState(1);
+
+    const fetchDashboard = async (page: number) => {
+        try {
+            const token = getCookie("token") as string;
+            const dashRes = await get(`${BASE_API_URL}/student/dashboard?page=${page}&limit=5`, token);
+            if (dashRes.data?.success) {
+                setData(dashRes.data.data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch student dashboard", error);
+        }
+    };
 
     useEffect(() => {
-        const fetchDashboard = async () => {
+        const fetchInitialData = async () => {
             try {
                 const token = getCookie("token") as string;
-                const [dashRes, leadRes] = await Promise.all([
-                    get(`${BASE_API_URL}/student/dashboard`, token),
-                    get(`${BASE_API_URL}/leaderboard`, token),
-                ]);
+                const leadRes = await get(`${BASE_API_URL}/leaderboard`, token);
+                
+                await fetchDashboard(1);
 
-                // ✅ Cek properti `success` dari body response (sesuai format backend)
-                if (dashRes.data?.success) {
-                    setData(dashRes.data.data);
-                } else {
-                    setFetchError(dashRes.data?.message || "Gagal memuat data dashboard.");
-                }
-
-                // Leaderboard bersifat opsional — tidak perlu crash jika gagal
                 if (leadRes.data?.success) {
                     setLeaderboardData(leadRes.data.data ?? []);
                 }
             } catch (error) {
-                console.error("Failed to fetch student dashboard", error);
+                console.error("Failed to fetch student initial data", error);
                 setFetchError("Terjadi kesalahan saat memuat data. Silakan refresh halaman.");
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchDashboard();
+        fetchInitialData();
     }, []);
 
     if (isLoading) {
@@ -126,10 +131,20 @@ export default function StudentDashboard() {
     }
 
     const {
-        student, stats, strongest_subject, weakest_subject,
+        student, stats,
         recent_quizzes, in_progress_quizzes, subject_mastery,
         weekly_scores, recent_activities, module_progress,
     } = data;
+
+    // ── Hitung modul terbaik & terlemah dari module_progress ──────────────────
+    // Urutkan berdasarkan progress_percentage (completion) sebagai proxy performa
+    const sortedModules = [...(module_progress ?? [])].sort(
+        (a, b) => b.progress_percentage - a.progress_percentage
+    );
+    const bestModule   = sortedModules[0] ?? null;
+    const worstModule  = sortedModules.length > 1
+        ? sortedModules[sortedModules.length - 1]
+        : null;
 
     return (
         <div className="space-y-8 pb-12 max-w-full">
@@ -196,16 +211,20 @@ export default function StudentDashboard() {
             <Section title="Ringkasan Belajar" subtitle="Detail performa dan progres keseluruhanmu">
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-5">
                     <OverviewCard
-                        label="Terkuat"
-                        value={strongest_subject?.subject_name ?? "—"}
-                        sub={strongest_subject ? `Rata-rata ${strongest_subject.average_score} pts` : "Belum ada data"}
+                        label="Modul Terbaik"
+                        value={bestModule?.module_name ?? "—"}
+                        sub={bestModule
+                            ? `${bestModule.subject_name} · ${bestModule.completed}/${bestModule.total} quiz (${bestModule.progress_percentage}%)`
+                            : "Belum ada data"}
                         icon={<Zap size={18} className="text-[#1D61D2]" />}
                         iconBg="bg-[#EAF3FF]"
                     />
                     <OverviewCard
                         label="Perlu Ditingkatkan"
-                        value={weakest_subject?.subject_name ?? "—"}
-                        sub={weakest_subject ? `Rata-rata ${weakest_subject.average_score} pts` : "Belum ada data"}
+                        value={worstModule?.module_name ?? "—"}
+                        sub={worstModule
+                            ? `${worstModule.subject_name} · ${worstModule.completed}/${worstModule.total} quiz (${worstModule.progress_percentage}%)`
+                            : "Belum ada data"}
                         icon={<AlertTriangle size={18} className="text-amber-600" />}
                         iconBg="bg-amber-50"
                     />
@@ -326,6 +345,15 @@ export default function StudentDashboard() {
                             <div className="px-5 py-4 text-center text-sm text-gray-500">Belum ada aktivitas terbaru</div>
                         )}
                     </div>
+                    {data?.pagination && (
+                        <Pagination 
+                            pagination={data.pagination} 
+                            onPageChange={(page) => {
+                                setActivityPage(page);
+                                fetchDashboard(page);
+                            }} 
+                        />
+                    )}
                 </div>
             </Section>
 

@@ -137,7 +137,7 @@ export default function ReviewPage() {
         <div className="max-w-4xl mx-auto pb-12 space-y-8">
 
             {/* Back */}
-            <Link href={`/student/result/${review.quiz_uuid}`}>
+            <Link href={`/student/quiz/${review.quiz_uuid}/result`}>
                 <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#0d4669] transition-colors group">
                     <ArrowLeft size={14} className="group-hover:-translate-x-0.5 transition-transform" />
                     Kembali ke Hasil

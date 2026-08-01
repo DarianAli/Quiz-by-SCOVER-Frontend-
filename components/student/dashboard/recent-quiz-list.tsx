@@ -80,10 +80,10 @@ export function RecentQuizList({ data }: RecentQuizListProps) {
 
                             {/* Action */}
                             <div className="shrink-0">
-                                <Link href={`/student/review/${quiz.quiz_uuid}`}>
+                                <Link href={`/student/quiz/${quiz.quiz_uuid}/result`}>
                                     <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#1D61D2] bg-[#EAF3FF] hover:bg-[#DBEAFE] transition-colors">
                                         <RotateCcw size={11} />
-                                        Review
+                                        Hasil
                                     </button>
                                 </Link>
                             </div>

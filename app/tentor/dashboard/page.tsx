@@ -20,6 +20,19 @@ export default function TeacherDashboard() {
     const [subjects, setSubjects] = useState<any[]>([]);
     const [leaderboardList, setLeaderboardList] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [activityPage, setActivityPage] = useState(1);
+
+    const fetchDashboard = async (page: number) => {
+        try {
+            const token = getCookie("token") as string;
+            const resDash = await get(`${BASE_API_URL}/tentor/dashboard?page=${page}&limit=5`, token);
+            if (resDash.data?.success) {
+                setDashboardData(resDash.data.data);
+            }
+        } catch (error) {
+            console.error("Error fetching tentor dashboard stats:", error);
+        }
+    };
 
     useEffect(() => {
         const fetchData = async () => {
@@ -28,10 +41,7 @@ export default function TeacherDashboard() {
                 const token = getCookie("token") as string;
 
                 // Fetch Dashboard Stats & Recent Submissions
-                const resDash = await get(`${BASE_API_URL}/tentor/dashboard`, token);
-                if (resDash.data?.success) {
-                    setDashboardData(resDash.data.data);
-                }
+                await fetchDashboard(1);
 
                 // Fetch Students for Leaderboard
                 const resStudents = await get(`${BASE_API_URL}/tentor/students`, token);
@@ -58,6 +68,11 @@ export default function TeacherDashboard() {
         };
         fetchData();
     }, []);
+
+    const handlePageChange = (page: number) => {
+        setActivityPage(page);
+        fetchDashboard(page);
+    };
 
     // Format Data for Components
     const leaderboardData = studentList
@@ -174,7 +189,11 @@ export default function TeacherDashboard() {
                         title="Recent Submissions"
                         subtitle="Log aktivitas real-time pengerjaan evaluasi kuis mandiri siswa dari kelas Anda."
                     />
-                    <RecentActivityTable data={recentActivities}/>
+                    <RecentActivityTable 
+                        data={recentActivities} 
+                        pagination={dashboardData?.pagination} 
+                        onPageChange={handlePageChange}
+                    />
                 </section>
 
             </div>

@@ -246,6 +246,8 @@ export interface IStudentQuizCard {
     // Null jika belum ada attempt
     attempt_id: number | null;
     is_finished: boolean;
+    retake_policy: string;
+    max_attempts: number | null;
 }
 
 /** Subject dengan quiz list dan progress student */
@@ -268,6 +270,33 @@ export interface IStudentSubjectSummary {
     completed_quiz: number;
     average_score: number;
     completion_percentage: number;
+}
+
+/** Module progress item dari dashboard — primary learning unit */
+export interface IModuleProgress {
+    module_uuid: string;
+    module_name: string;
+    subject_name: string;
+    /** Jumlah quiz yang sudah selesai di module ini */
+    completed: number;
+    /** Total quiz dalam module ini */
+    total: number;
+    /** Persentase penyelesaian 0-100 */
+    progress_percentage: number;
+    /** Rata-rata skor dari quiz yang sudah selesai (opsional, jika backend kirim) */
+    average_score?: number;
+    /** Akurasi rata-rata dalam module (opsional) */
+    accuracy?: number;
+}
+
+/** Module mastery per-student dari tentor student detail */
+export interface IModuleMastery {
+    module_name: string;
+    subject_name: string;
+    average_score: number;
+    completed: number;
+    total: number;
+    mastery: number; // 0-100 percentage
 }
 
 /** Dashboard summary response dari GET /student/dashboard */
@@ -303,6 +332,8 @@ export interface IStudentDashboard {
     subject_mastery: ISubjectMasteryItem[];
     weekly_scores: IWeeklyScoreItem[];
     recent_activities: IStudentActivityItem[];
+    /** Progress per-module — primary learning unit */
+    module_progress: IModuleProgress[];
 }
 
 /** Item quiz yang sudah dikerjakan (recent) */
@@ -387,6 +418,9 @@ export interface IQuizDetail {
     quiz_title: string;
     difficulty: Difficulty;
     duration: number;              // minutes
+    retake_policy: string;
+    max_attempts: number | null;
+    can_attempt: boolean;
     total_questions: number;
     subject_name: string;
     questions: IQuizQuestion[];
@@ -426,6 +460,8 @@ export interface IQuizResult {
     quiz_title: string;
     subject_name: string;
     difficulty: Difficulty;
+    retake_policy: string;
+    max_attempts: number | null;
     score: {
         uuid: string;
         total_questions: number;

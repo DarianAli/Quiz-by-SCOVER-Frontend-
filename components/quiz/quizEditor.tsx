@@ -14,11 +14,11 @@ import {
   ChevronRight,
 } from "lucide-react"
 import { getSubjectTheme } from "@/lib/theme/subject-themes"
-import { getQuestionTypeTheme } from "@/lib/theme/question-type-themes"
+import { getQuestionTypeTheme, normalizeQuestionType, type QuestionTypeKey } from "@/lib/theme/question-type-themes"
 import { questionItemToFormValue, formValueToQuestionItem, type QuestionFormValue } from "@/types/questions"
 import QuestionFormEditor from "../Subject/QuestionFormEditor"
 import { toast } from "react-toastify"
-import { post } from "@/lib/api-bridge"
+import { post, put } from "@/lib/api-bridge"
 import { getCookie } from "@/lib/client-cookie"
 import { BASE_API_URL } from "@/global"
 
@@ -126,7 +126,8 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
         difficulty: quiz.difficulty,
         poin: value.points || 10,
         quizId: quiz.uuid,
-        discussion: value.explanation
+        discussion: value.explanation,
+        question_type: value.type, // ✅ Kirim tipe soal ke backend
       }
       const resQ = await post(`${BASE_API_URL}/question/add`, qPayload, token)
       if (!resQ.data?.success) {
@@ -136,8 +137,6 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
       questionId = resQ.data.data.id
 
       // ✅ Simpan questionId ke state SEGERA — sebelum step opsi.
-      // Jika step opsi gagal, retry berikutnya tidak akan membuat question baru lagi,
-      // karena activeQuestion.id sudah terisi (isNew jadi false).
       updateQuestion({
         ...formValueToQuestionItem(value, questionId),
         id: questionId,
@@ -155,24 +154,38 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
         const optionResults = await Promise.all(optionPromises)
         const failed = optionResults.find(r => !r.data?.success)
         if (failed) {
-          // Question sudah tersimpan, tapi opsi gagal — jangan retry create question lagi.
           toast.error(failed.data?.message || "Sebagian pilihan jawaban gagal disimpan")
           return
         }
       }
       toast.success("Question created")
     } else {
+      // ✅ Edit: persist ke backend via PUT (bukan hanya update lokal)
+      const updatePayload = {
+        question_text: value.prompt,
+        difficulty: quiz.difficulty,
+        poin: value.points || 10,
+        discussion: value.explanation,
+        question_type: value.type, // ✅ Pastikan tipe soal tersimpan saat edit
+      }
+      const questionIdOrUuid = activeQuestion.uuid || activeQuestion.id
+      const resUpdate = await put(`${BASE_API_URL}/question/update/${questionIdOrUuid}`, updatePayload, token)
+      if (!resUpdate.data?.success) {
+        toast.error(resUpdate.data?.message || "Gagal memperbarui pertanyaan")
+        return
+      }
+
       updateQuestion({
         ...formValueToQuestionItem(value, activeQuestion.idQuestion || activeQuestion.id),
         id: questionId
       })
-      toast.success("Question updated locally (backend update pending)")
+      toast.success("Question updated")
     }
 
     setView("list")
   } catch (err: any) {
     console.error("[handleSaveQuestionForm]", {
-      endpoint: `${BASE_API_URL}/question/add | /option/add`,
+      endpoint: `${BASE_API_URL}/question/add | /option/add | /question/update`,
       status: err?.response?.status,
       message: err?.response?.data?.message ?? err?.message,
       body: err?.response?.data,
@@ -182,14 +195,15 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
 }
 
   if (view === "question" && activeQuestion) {
-    const fallbackQuestionType = activeQuestion.options ? "multiple_choice" : "essay"
+    // Normalize question_type from backend (UPPERCASE enum) to frontend lowercase key
+    const resolvedType = normalizeQuestionType(activeQuestion.question_type)
     const parsedInitialValue: QuestionFormValue = {
         prompt: activeQuestion.question_text || "",
         points: activeQuestion.poin || 10,
         explanation: activeQuestion.discussion || "",
-        type: activeQuestion.question_type || fallbackQuestionType,
+        type: resolvedType,
         difficulty: activeQuestion.difficulty || "EASY",
-        tag: "", // Default tag
+        tag: "",
         choices: activeQuestion.options?.map((o: any) => ({
             id: o.uuid || o.idOption || o.id,
             text: o.option_text,
