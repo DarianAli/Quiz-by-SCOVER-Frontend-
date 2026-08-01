@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { getSubjectTheme, type SubjectThemeKey } from "@/lib/theme/subject-themes"
 
 export interface SubjectCardData {
-  id: number
+  id: string
   name: string
   description?: string
   icon: React.ReactNode
@@ -12,11 +12,12 @@ export interface SubjectCardData {
   lessonCount: number
   studentCount: number
   progress: number // 0-100
+  isMyClass?: boolean
 }
 
 interface SubjectCardProps {
   subject: SubjectCardData
-  onManage: (id: number) => void
+  onManage: (id: string) => void
 }
 
 export default function SubjectCard({ subject, onManage }: SubjectCardProps) {
@@ -32,6 +33,12 @@ export default function SubjectCard({ subject, onManage }: SubjectCardProps) {
     <div
       className={`group relative rounded-3xl p-5 ${theme.cardBg} ring-1 ring-black/5 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl`}
     >
+      {subject.isMyClass && (
+        <span className={`absolute top-4 right-4 inline-flex items-center gap-1 ${theme.badge} px-2 py-0.5 rounded-full text-[10px] font-bold`}>
+          ✓ Kelas Saya
+        </span>
+      )}
+
       <div className="flex items-center gap-3 mb-4">
         <div
           className={`w-11 h-11 rounded-2xl ${theme.iconBg} text-white flex items-center justify-center shadow-md transition-transform duration-200 group-hover:-translate-y-1 group-hover:rotate-3`}

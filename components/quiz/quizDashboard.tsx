@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Sigma, Compass, Dna, FlaskConical, Landmark, Languages, Atom, FileQuestion } from "lucide-react"
+import { FileQuestion } from "lucide-react"
 import type { SubjectThemeKey } from "@/lib/theme/subject-themes"
+import { getSubjectIcon, pickSubjectTheme } from "@/lib/theme/subject-visuals"
 import QuizBasicInfoPanel from "./quizBasicInforPanel"
 import DashboardHero from "../Subject/DashboardHero"
-import SubjectCard, { type SubjectCardData } from "@/components/Subject/SubjectCard"
 import RecentQuizzesPanel from "@/components/Subject/RecentQuizzesPanel"
 import WeeklyStreakCard from "@/components/Subject/WeeklyStreakCard"
 import LiveActivityCard, { type LiveActivityItem } from "@/components/Subject/LiveActivityCard"
@@ -20,17 +20,6 @@ interface QuizDashboardProps {
   onOpenEditor: (idQuiz: string) => void
 }
 
-const SUBJECT_ICON: Record<string, React.ReactNode> = {
-  math: <Sigma size={18} />,
-  geometry: <Compass size={18} />,
-  physics: <Atom size={18} />,
-  biology: <Dna size={18} />,
-  genetics: <Dna size={18} />,
-  chemistry: <FlaskConical size={18} />,
-  history: <Landmark size={18} />,
-  english: <Languages size={18} />,
-}
-
 const PLACEHOLDER_WEEKLY_STREAK_DAYS = 0
 const PLACEHOLDER_LIVE_ACTIVITY: LiveActivityItem[] = []
 
@@ -40,7 +29,6 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
   const [quizzes, setQuizzes] = useState<any[]>([])
   const [subjects, setSubjects] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const teacherName = getCookie("userName") || "Coach"
 
   const fetchData = async () => {
     setIsLoading(true)
@@ -48,7 +36,7 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
       const token = getCookie("token") as string
       const [resQuiz, resSub] = await Promise.all([
         get(`${BASE_API_URL}/quiz/all`, token),
-        get(`${BASE_API_URL}/subject/all`, token)
+        get(`${BASE_API_URL}/tentor/subjects`)
       ])
       
       if (resQuiz.data?.success) setQuizzes(resQuiz.data.data)
@@ -97,41 +85,15 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
     }
   }
 
-  const heroStats = {
-    activeQuiz: quizzes.length,
-    activeQuizDelta: undefined,
-    studentsEngaged: 0, 
-    studentsEngagedDelta: undefined,
-    averageScore: 0, 
-    averageScoreDelta: undefined,
-    completionRate: 0, 
-    completionRateDelta: undefined,
-  }
-  const pendingReviews = quizzes.filter((q) => q.status === "DRAFT").length
-
-  const subjectCards: SubjectCardData[] = subjects.map((s, i) => {
-    const relatedQuizzes = quizzes.filter((q) => q.subjectId === s.id)
-    const totalQuestions = relatedQuizzes.reduce((sum, q) => sum + (q.questions?.length || 0), 0)
-    const themes = ["math", "physics", "english", "biology", "history"]
-    const theme = themes[i % themes.length]
-    return {
-      id: s.uuid || s.id,
-      name: s.subject_name,
-      theme: theme as SubjectThemeKey,
-      icon: SUBJECT_ICON[theme],
-      lessonCount: relatedQuizzes.length,
-      studentCount: 0, 
-      progress: totalQuestions > 0 ? Math.min(100, totalQuestions * 5) : 0,
-    }
-  })
+  const mySubject = subjects.find(s => s.is_my_class) || subjects[0];
 
   const recentQuizRows = quizzes.map((quiz) => {
-    const subject = subjects.find((s) => s.id === quiz.subjectId)
-    const themes = ["math", "physics", "english", "biology", "history"]
+    const subject = subjects.find((s) => s.uuid === quiz.subject?.uuid)
+    const theme = pickSubjectTheme(quiz.subject?.uuid ?? quiz.uuid)
     return {
-      quiz: quiz as any, // Cast as any or IQuiz since the backend representation might lack some Prisma relations but matches what the component expects
-      subjectName: subject?.subject_name ?? "General",
-      subjectTheme: (themes[quiz.subjectId % themes.length] || "math") as SubjectThemeKey,
+      quiz: quiz as any, // Cast as any / IQuiz karena representasi backend mungkin kurang beberapa relasi Prisma tapi sudah sesuai yang dibutuhkan komponen
+      subjectName: subject?.subject_name ?? quiz.subject?.subject_name ?? "General",
+      subjectTheme: theme,
       icon: <FileQuestion size={18} />,
     }
   })
@@ -143,25 +105,27 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
   return (
     <div className="min-h-dvh bg-slate-50 p-4 sm:p-6">
       <div className="max-w-full mx-auto space-y-8">
-        <DashboardHero
-          teacherName={teacherName}
-          pendingReviews={pendingReviews}
-          newSubmissions={0} 
-          stats={heroStats}
-          onCreateQuiz={() => setPanelOpen(true)}
-        />
-
-        <div>
-          <div className="mb-3">
-            <h2 className="text-sm font-medium text-slate-500">Your classroom</h2>
-            <h3 className="text-lg font-bold text-slate-900">Subjects</h3>
+        {mySubject ? (
+          <DashboardHero
+            subjectId={mySubject.uuid}
+            subjectName={mySubject.subject_name}
+            className={mySubject.assigned_class_name || "General Class"}
+            annualGoal={mySubject.annual_quiz_target || 0}
+            completedModules={mySubject.completed_modules || 0}
+            curriculumProgress={mySubject.curriculum_progress || 0}
+            teachers={mySubject.tentors || []}
+            stats={{
+              activeQuiz: mySubject.total_quiz || 0,
+              studentsEngaged: mySubject.student_count || 0,
+              averageScore: mySubject.average_score || 0,
+              completionRate: mySubject.completion_rate || 0,
+            }}
+          />
+        ) : (
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex items-center justify-center h-48">
+             <p className="text-slate-500 font-medium">Tidak ada kelas yang di-assign untuk Anda.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {subjectCards.map((subject) => (
-              <SubjectCard key={subject.id} subject={subject} onManage={() => {}} />
-            ))}
-          </div>
-        </div>
+        )}
 
         <div className="grid lg:grid-cols-[1.6fr_1fr] gap-5 items-start">
           <RecentQuizzesPanel

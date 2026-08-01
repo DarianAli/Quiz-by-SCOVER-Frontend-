@@ -7,8 +7,8 @@ import {
     Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
 import {
-    TrendingUp, TrendingDown, Minus, Trophy, Flame,
-    CheckSquare, Target, Clock, BookOpen, Zap,
+    TrendingUp, TrendingDown, Minus, Flame,
+    CheckSquare, Target, Clock, Zap, BookOpen,
 } from "lucide-react";
 import { CircularProgressRing } from "@/components/student/shared/circular-progress";
 import { ProgressBar } from "@/components/student/shared/progress-bar";
@@ -16,6 +16,7 @@ import { TrendBadge } from "@/components/student/shared/badge";
 import { get } from "@/lib/api-bridge";
 import { getCookie } from "@/lib/client-cookie";
 import { BASE_API_URL } from "@/global";
+import type { IModuleProgress } from "@/app/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,22 +53,18 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
     );
 };
 
-const SUBJECT_COLORS = ["#1D61D2","#10b981","#F4C430","#8b5cf6","#ec4899","#f97316"];
+const MODULE_COLORS = ["#1D61D2", "#10b981", "#F4C430", "#8b5cf6", "#ec4899", "#f97316", "#06b6d4", "#84cc16"];
 
-// ─── Progress Page ────────────────────────────────────────────────────────────
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 
 interface MonthlyPerformance {
     month: string;
     average_score: number;
 }
 
-interface SubjectProgress {
-    subject_name: string;
-    trend: "UP" | "DOWN" | "STABLE";
-    completed_quiz: number;
-    total_quiz: number;
-    mastery_percentage: number;
-    average_score: number;
+interface AccuracyTrendItem {
+    week: string;
+    accuracy: number;
 }
 
 interface TopicPerformance {
@@ -87,45 +84,137 @@ interface ProgressData {
         total_quiz: number;
         average_accuracy: number;
     };
-    accuracy_trend: { quiz_title: string; accuracy: number; date: string }[];
+    accuracy_trend: AccuracyTrendItem[];
     monthly_performance: MonthlyPerformance[];
-    subject_progress: SubjectProgress[];
     weak_topics: TopicPerformance[];
     strong_topics: TopicPerformance[];
 }
 
+// ─── Module Mastery Card ──────────────────────────────────────────────────────
+
+function ModuleMasteryCard({ mod, color, index }: {
+    mod: IModuleProgress;
+    color: string;
+    index: number;
+}) {
+    const pct = mod.progress_percentage ?? 0;
+    const scoreLabel = (mod.average_score !== undefined && mod.average_score > 0)
+        ? `${mod.average_score} pts`
+        : null;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.08 + index * 0.05 }}
+            className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.03)] p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
+        >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider mb-0.5" style={{ color }}>
+                        {mod.subject_name}
+                    </p>
+                    <h4 className="text-sm font-bold text-gray-800 truncate">{mod.module_name}</h4>
+                </div>
+                <div
+                    className="shrink-0 w-2.5 h-2.5 rounded-full mt-1.5"
+                    style={{ backgroundColor: color }}
+                />
+            </div>
+
+            {/* Progress bar */}
+            <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs text-gray-500">Progress</span>
+                <span className="text-xs font-bold text-gray-700">{pct}%</span>
+            </div>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
+                <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.8, delay: 0.1 + index * 0.05, ease: [0.16, 1, 0.3, 1] }}
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: color }}
+                />
+            </div>
+
+            {/* Footer stats */}
+            <div className="flex items-center justify-between pt-2 border-t border-gray-50">
+                <span className="text-[11px] text-gray-400">
+                    {mod.completed}/{mod.total} Quiz Selesai
+                </span>
+                {scoreLabel && (
+                    <span className="text-[11px] font-bold text-gray-600">
+                        ⌀ {scoreLabel}
+                    </span>
+                )}
+            </div>
+        </motion.div>
+    );
+}
+
+// ─── Progress Page ────────────────────────────────────────────────────────────
+
 export default function ProgressPage() {
     const [progress, setProgress] = useState<ProgressData | null>(null);
+    const [moduleProgress, setModuleProgress] = useState<IModuleProgress[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchProgress = async () => {
+        const fetchAll = async () => {
             try {
                 const token = getCookie("token") as string;
-                const res = await get(`${BASE_API_URL}/student/progress`, token);
-                if (res.data?.success) {
-                    setProgress(res.data.data);
+
+                // Fetch progress + dashboard (untuk module_progress) secara paralel
+                const [progressRes, dashRes] = await Promise.all([
+                    get(`${BASE_API_URL}/student/progress`, token),
+                    get(`${BASE_API_URL}/student/dashboard`, token),
+                ]);
+
+                if (progressRes.data?.success) {
+                    setProgress(progressRes.data.data);
                 } else {
-                    console.error("Failed to load progress");
+                    console.error("Failed to load progress:", progressRes.data?.message);
+                }
+
+                if (dashRes.data?.success) {
+                    const mp: IModuleProgress[] = dashRes.data.data?.module_progress ?? [];
+                    // Urutkan berdasarkan progress_percentage desc
+                    setModuleProgress(mp.sort((a, b) => b.progress_percentage - a.progress_percentage));
                 }
             } catch (err) {
-                console.error(err);
+                console.error("Failed to fetch progress data", err);
             } finally {
                 setIsLoading(false);
             }
         };
-        fetchProgress();
+        fetchAll();
     }, []);
 
     if (isLoading) {
-        return <div className="min-h-screen flex items-center justify-center">Memuat Progress...</div>;
+        return (
+            <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="text-center space-y-3">
+                    <div className="w-8 h-8 border-2 border-[#1D61D2] border-t-transparent rounded-full animate-spin mx-auto" />
+                    <p className="text-sm text-gray-500">Memuat Progress Belajar...</p>
+                </div>
+            </div>
+        );
     }
 
     if (!progress) {
-        return <div className="min-h-screen flex items-center justify-center text-red-500">Progress tidak ditemukan.</div>;
+        return (
+            <div className="min-h-[60vh] flex items-center justify-center text-red-500">
+                Progress tidak ditemukan.
+            </div>
+        );
     }
 
-    const { overall, subject_progress, monthly_performance, accuracy_trend, weak_topics, strong_topics } = progress;
+    const { overall, monthly_performance, accuracy_trend, weak_topics, strong_topics } = progress;
+
+    // Modul terbaik & terlemah (berdasarkan progress_percentage)
+    const bestModule  = moduleProgress[0] ?? null;
+    const worstModule = moduleProgress.length > 1 ? moduleProgress[moduleProgress.length - 1] : null;
 
     return (
         <div className="space-y-8 pb-12 max-w-full">
@@ -133,7 +222,7 @@ export default function ProgressPage() {
             {/* Page Header */}
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
                 <h1 className="text-2xl md:text-3xl font-bold text-[#083E63]">Progress Belajar</h1>
-                <p className="text-sm font-medium text-gray-500 mt-1">Pantau perkembangan belajarmu secara menyeluruh</p>
+                <p className="text-sm font-medium text-gray-500 mt-1">Pantau perkembangan belajarmu secara menyeluruh berdasarkan modul</p>
             </motion.div>
 
             {/* ── 1. Overall Performance ────────────────────────────── */}
@@ -187,7 +276,49 @@ export default function ProgressPage() {
                 </div>
             </Section>
 
-            {/* ── 2. Charts ─────────────────────────────────────────── */}
+            {/* ── 2. Module Mastery Grid ─────────────────────────────── */}
+            {moduleProgress.length > 0 && (
+                <Section title="Penguasaan per Modul" subtitle="Detail progress dan performa setiap modul belajarmu">
+                    {/* Best / Worst summary chips */}
+                    {(bestModule || worstModule) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                            {bestModule && (
+                                <div className="flex items-center gap-3 bg-emerald-50 rounded-xl px-4 py-3 border border-emerald-100">
+                                    <Zap size={16} className="text-emerald-600 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600">Modul Terbaik</p>
+                                        <p className="text-sm font-bold text-emerald-800 truncate">{bestModule.module_name}</p>
+                                        <p className="text-[11px] text-emerald-600">{bestModule.subject_name} · {bestModule.progress_percentage}%</p>
+                                    </div>
+                                </div>
+                            )}
+                            {worstModule && (
+                                <div className="flex items-center gap-3 bg-amber-50 rounded-xl px-4 py-3 border border-amber-100">
+                                    <TrendingDown size={16} className="text-amber-600 shrink-0" />
+                                    <div className="min-w-0">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600">Perlu Ditingkatkan</p>
+                                        <p className="text-sm font-bold text-amber-800 truncate">{worstModule.module_name}</p>
+                                        <p className="text-[11px] text-amber-600">{worstModule.subject_name} · {worstModule.progress_percentage}%</p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+                        {moduleProgress.map((mod, i) => (
+                            <ModuleMasteryCard
+                                key={mod.module_uuid}
+                                mod={mod}
+                                color={MODULE_COLORS[i % MODULE_COLORS.length]}
+                                index={i}
+                            />
+                        ))}
+                    </div>
+                </Section>
+            )}
+
+            {/* ── 3. Charts ─────────────────────────────────────────── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
 
                 {/* Accuracy Trend Line Chart */}
@@ -247,118 +378,65 @@ export default function ProgressPage() {
                 </motion.div>
             </div>
 
-            {/* ── 3. Subject Mastery Grid ────────────────────────────── */}
-            <Section title="Penguasaan per Mata Pelajaran" subtitle="Detail progress dan rata-rata skor setiap subject">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-                    {subject_progress.map((subj, i) => {
-                        const color = SUBJECT_COLORS[i % SUBJECT_COLORS.length];
-                        return (
-                            <motion.div
-                                key={subj.subject_name}
-                                initial={{ opacity: 0, scale: 0.96 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.1 + i * 0.05 }}
-                                className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.03)] p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300"
-                            >
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                                        <h4 className="text-sm font-bold text-gray-800 truncate max-w-[140px]">{subj.subject_name}</h4>
+            {/* ── 4. Weak & Strong Topics (Module-based) ───────────────── */}
+            {(strong_topics.length > 0 || weak_topics.length > 0) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+
+                    {/* Strong Topics */}
+                    <motion.div
+                        initial={{ opacity: 0, x: -12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.15 }}
+                        className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden"
+                    >
+                        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+                            <Zap size={16} className="text-emerald-500" />
+                            <h3 className="text-base font-bold text-[#083E63]">Topik Terkuat</h3>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                            {strong_topics.map((topic, i) => (
+                                <div key={topic.topic} className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50/60 transition-colors">
+                                    <span className="text-xs font-black text-emerald-500 w-5">#{i + 1}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-gray-800 truncate">{topic.topic}</p>
+                                        <p className="text-xs text-gray-400">{topic.subject} · {topic.attempts}x dikerjakan</p>
                                     </div>
-                                    <TrendBadge trend={subj.trend} />
+                                    <div className="shrink-0">
+                                        <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">{topic.accuracy}%</span>
+                                    </div>
                                 </div>
+                            ))}
+                        </div>
+                    </motion.div>
 
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs text-gray-400">{subj.completed_quiz}/{subj.total_quiz} kuis</span>
-                                    <span className="text-xs font-bold" style={{ color }}>{subj.mastery_percentage}%</span>
+                    {/* Weak Topics */}
+                    <motion.div
+                        initial={{ opacity: 0, x: 12 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden"
+                    >
+                        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
+                            <TrendingDown size={16} className="text-red-400" />
+                            <h3 className="text-base font-bold text-[#083E63]">Perlu Ditingkatkan</h3>
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                            {weak_topics.map((topic, i) => (
+                                <div key={topic.topic} className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50/60 transition-colors">
+                                    <span className="text-xs font-black text-red-400 w-5">#{i + 1}</span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold text-gray-800 truncate">{topic.topic}</p>
+                                        <p className="text-xs text-gray-400">{topic.subject} · {topic.attempts}x dikerjakan</p>
+                                    </div>
+                                    <div className="shrink-0">
+                                        <span className="text-xs font-black text-red-500 bg-red-50 px-2 py-0.5 rounded-lg">{topic.accuracy}%</span>
+                                    </div>
                                 </div>
-                                <ProgressBar
-                                    value={subj.mastery_percentage}
-                                    height="sm"
-                                    colorClass=""
-                                    animate={false}
-                                />
-                                {/* Override color inline since TW dynamic classes won't work */}
-                                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden -mt-1.5">
-                                    <motion.div
-                                        initial={{ width: 0 }}
-                                        animate={{ width: `${subj.mastery_percentage}%` }}
-                                        transition={{ duration: 0.8, delay: 0.15 + i * 0.06, ease: [0.16, 1, 0.3, 1] }}
-                                        className="h-full rounded-full"
-                                        style={{ backgroundColor: color }}
-                                    />
-                                </div>
-
-                                <div className="flex justify-between items-center mt-3 pt-2.5 border-t border-gray-50">
-                                    <span className="text-xs text-gray-400">Rata-rata Skor</span>
-                                    <span className={`text-xs font-black ${
-                                        subj.average_score >= 80 ? "text-emerald-600" :
-                                        subj.average_score >= 60 ? "text-amber-600" : "text-red-500"
-                                    }`}>{subj.average_score} pts</span>
-                                </div>
-                            </motion.div>
-                        );
-                    })}
+                            ))}
+                        </div>
+                    </motion.div>
                 </div>
-            </Section>
-
-            {/* ── 4. Weak & Strong Topics ───────────────────────────── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-
-                {/* Strong Topics */}
-                <motion.div
-                    initial={{ opacity: 0, x: -12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.15 }}
-                    className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden"
-                >
-                    <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
-                        <Zap size={16} className="text-emerald-500" />
-                        <h3 className="text-base font-bold text-[#083E63]">Topik Terkuat</h3>
-                    </div>
-                    <div className="divide-y divide-gray-50">
-                        {strong_topics.map((topic, i) => (
-                            <div key={topic.topic} className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50/60 transition-colors">
-                                <span className="text-xs font-black text-emerald-500 w-5">#{i + 1}</span>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-gray-800 truncate">{topic.topic}</p>
-                                    <p className="text-xs text-gray-400">{topic.subject} · {topic.attempts}x dikerjakan</p>
-                                </div>
-                                <div className="shrink-0">
-                                    <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">{topic.accuracy}%</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </motion.div>
-
-                {/* Weak Topics */}
-                <motion.div
-                    initial={{ opacity: 0, x: 12 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.2 }}
-                    className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden"
-                >
-                    <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
-                        <TrendingDown size={16} className="text-red-400" />
-                        <h3 className="text-base font-bold text-[#083E63]">Perlu Ditingkatkan</h3>
-                    </div>
-                    <div className="divide-y divide-gray-50">
-                        {weak_topics.map((topic, i) => (
-                            <div key={topic.topic} className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50/60 transition-colors">
-                                <span className="text-xs font-black text-red-400 w-5">#{i + 1}</span>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-gray-800 truncate">{topic.topic}</p>
-                                    <p className="text-xs text-gray-400">{topic.subject} · {topic.attempts}x dikerjakan</p>
-                                </div>
-                                <div className="shrink-0">
-                                    <span className="text-xs font-black text-red-500 bg-red-50 px-2 py-0.5 rounded-lg">{topic.accuracy}%</span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </motion.div>
-            </div>
+            )}
 
         </div>
     );

@@ -16,26 +16,31 @@ export const get = async (
         const result = await axiosInstance.get(url, {
             headers: {
                 Authorization: token ? `Bearer ${token}` : "",
-                ...customHeaders 
+                ...customHeaders
             }
         })
-
         return result
     } catch (error) {
         const err = error as AxiosError<any>
+        const isNetworkError = !err.response;
         const message =
             err.response?.data?.message ??
             err.message ??
             "Something went wrong"
 
-        const status = err.response?.status || "Unknown";
-        console.error(`[API ERROR] Endpoint: ${url}`);
-        console.error(`[API ERROR] Status: ${status} - ${message}`);
+        const status = err.response?.status ?? "Network Error";
+        const isExpected = status !== "Network Error" && [400, 401, 403, 404, 422].includes(status as number)
+
+        if (isExpected) {
+            console.warn(`[API WARN] ${url} → ${status}: ${message}`)
+        } else {
+            console.error(`[API ERROR] ${url} → ${status}: ${message}${isNetworkError ? " (server unreachable)" : ""}`)
+        }
 
         throw {
-            response: {
+            response: err.response || {
                 status,
-                data: { message }
+                data: { message, success: false }
             }
         }
     }
@@ -52,21 +57,22 @@ export const post = async (url: string, data: any, token?: string) => {
         return { status: true, data: result.data }
     } catch (error) {
         const err = error as AxiosError<any>
-        const status = err.response?.status
+        const isNetworkError = !err.response;
+        const status = err.response?.status ?? "Network Error"
         const message = err.response?.data?.message ?? err.message ?? "Something went wrong"
 
-        const isExpected = status !== undefined && [400, 401, 403, 404, 422].includes(status)
+        const isExpected = status !== "Network Error" && [400, 401, 403, 404, 422].includes(status as number)
 
         if (isExpected) {
             console.warn(`[API WARN] ${url} → ${status}: ${message}`)
         } else {
-            console.error(`[API ERROR] ${url} → ${status ?? "Unknown"}: ${message}`)
+            console.error(`[API ERROR] ${url} → ${status}: ${message}${isNetworkError ? " (server unreachable)" : ""}`)
         }
 
         throw {
-            response: {
-                status,          // ← sekarang ikut dilempar
-                data: { message }
+            response: err.response || {
+                status,
+                data: { message, success: false }
             }
         }
     }
@@ -88,20 +94,53 @@ export const put = async (url: string, data: any, token?: string) => {
         }
     } catch (error) {
         const err = error as AxiosError<any>
+        const isNetworkError = !err.response;
 
         const message =
             err.response?.data?.message ??
             err.message ??
             "Something went wrong"
 
-        const status = err.response?.status || "Unknown";
-        console.error(`[API ERROR] Endpoint: ${url}`);
-        console.error(`[API ERROR] Status: ${status} - ${message}`);
+        const isExpected = status !== "Network Error" && [400, 401, 403, 404, 422].includes(status as number)
+
+        if (isExpected) {
+            console.warn(`[API WARN] ${url} → ${status}: ${message}`)
+        } else {
+            console.error(`[API ERROR] ${url} → ${status}: ${message}${isNetworkError ? " (server unreachable)" : ""}`)
+        }
 
         throw {
-            response: {
+            response: err.response || {
                 status,
-                data: { message }
+                data: { message, success: false }
+            }
+        }
+    }
+}
+
+export const patch = async (url: string, data: any, token?: string) => {
+    try {
+        const headers: any = {}
+        if (token) headers.Authorization = `Bearer ${token}`
+        const result = await axiosInstance.patch(url, data, { headers })
+        return { status: true, data: result.data }
+    } catch (error) {
+        const err = error as AxiosError<any>
+        const isNetworkError = !err.response;
+        const status = err.response?.status ?? "Network Error"
+        const message = err.response?.data?.message ?? err.message ?? "Something went wrong"
+        const isExpected = status !== "Network Error" && [400, 401, 403, 404, 422].includes(status as number)
+
+        if (isExpected) {
+            console.warn(`[API WARN] ${url} → ${status}: ${message}`)
+        } else {
+            console.error(`[API ERROR] ${url} → ${status}: ${message}${isNetworkError ? " (server unreachable)" : ""}`)
+        }
+
+        throw {
+            response: err.response || {
+                status,
+                data: { message, success: false }
             }
         }
     }
@@ -127,15 +166,19 @@ export const drop = async (url: string, token?: string) => {
             err.message ??
             "Something went wrong"
 
-        const status = err.response?.status || "Unknown";
-        console.error(`[API ERROR] Endpoint: ${url}`);
-        console.error(`[API ERROR] Status: ${status} - ${message}`);
+        const isExpected = status !== "Unknown" && [400, 401, 403, 404, 422].includes(status as number)
+
+        if (isExpected) {
+            console.warn(`[API WARN] ${url} → ${status}: ${message}`)
+        } else {
+            console.error(`[API ERROR] ${url} → ${status}: ${message}`)
+        }
 
         throw {
-            response: {
+            response: err.response || {
                 status,
                 data: {
-                    message
+                    message, success: false
                 }
             }
         }
