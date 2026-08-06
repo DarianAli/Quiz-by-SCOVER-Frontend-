@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Compass } from "lucide-react";
 
 type Props = {
@@ -32,10 +33,13 @@ const HeroBanner = ({
                 </div>
                 
                 <div className="z-10 shrink-0 mt-4 md:mt-0">
-                    <button className="flex items-center gap-2 px-6 py-3 bg-[#F9C73D] text-[#083E63] font-bold rounded-full shadow-lg hover:bg-[#ffe182] hover:-translate-y-1 transition-all duration-300 active:scale-95 outline-none focus:ring-2 focus:ring-[#F9C73D] focus:ring-offset-2 focus:ring-offset-[#0B5C8C]">
+                    <Link
+                        href={buttonLink}
+                        className="flex items-center gap-2 px-6 py-3 bg-[#F9C73D] text-[#083E63] font-bold rounded-full shadow-lg hover:bg-[#ffe182] hover:-translate-y-1 transition-all duration-300 active:scale-95 outline-none focus:ring-2 focus:ring-[#F9C73D] focus:ring-offset-2 focus:ring-offset-[#0B5C8C]"
+                    >
                         {buttonText}
                         <Compass className="w-5 h-5 ml-1" />
-                    </button>
+                    </Link>
                 </div>
             </div>
         </div>

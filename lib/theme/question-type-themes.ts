@@ -80,6 +80,16 @@ export const QUESTION_TYPE_THEME: Record<QuestionTypeKey, QuestionTypeTheme> = {
   },
 };
 
-export function getQuestionTypeTheme(key: QuestionTypeKey): QuestionTypeTheme {
-  return QUESTION_TYPE_THEME[key] ?? QUESTION_TYPE_THEME.multiple_choice;
+export function normalizeQuestionType(raw: string | undefined | null): QuestionTypeKey {
+  if (!raw) return "multiple_choice";
+  const lower = raw.toLowerCase().replace(/ /g, "_") as QuestionTypeKey;
+  const valid: QuestionTypeKey[] = [
+    "multiple_choice", "true_false", "short_answer", "essay", "matching", "fill_blank"
+  ];
+  return valid.includes(lower) ? lower : "multiple_choice";
+}
+
+export function getQuestionTypeTheme(key: string | undefined | null): QuestionTypeTheme {
+  const normalizedKey = normalizeQuestionType(key);
+  return QUESTION_TYPE_THEME[normalizedKey];
 }

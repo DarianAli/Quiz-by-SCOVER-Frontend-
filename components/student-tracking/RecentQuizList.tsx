@@ -41,7 +41,7 @@ export function RecentQuizList({ quizzes }: RecentQuizListProps) {
 
       <ul className="mt-4 divide-y divide-slate-100" role="list">
         {quizzes.map((quiz) => {
-          const theme = getSubjectTheme(quiz.subject);
+          const theme = getSubjectTheme(quiz.subject as any);
           return (
             <li key={quiz.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
               <span

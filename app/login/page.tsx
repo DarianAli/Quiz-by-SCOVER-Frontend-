@@ -16,38 +16,45 @@ export default function LoginPage() {
     const handleLogin = async (email: string, password: string, remember: boolean) => {
         try {
             setIsLoading(true)
-            const url = `${BASE_API_URL}/user/login`
+            const url = `${BASE_API_URL}/auth/login`
             const payload = { email, password }
 
             const { data } = await post(url, payload)
 
-            if (data.status === true) {
-                toast(data.message, {
+            if (data?.success === true) {
+                const userData = data.data
+
+                toast(data.message || "Login berhasil", {
                     hideProgressBar: true,
                     containerId: "toastLogin",
                     type: "success",
                     autoClose: 2000,
                 })
 
-                console.log("DATA LOGIN:", data)
-                storeCookie("token", data.token)
-                storeCookie("email", data.email)
-                storeCookie("userName", data.userName)
-                storeCookie("role", data.role)
-                const role = data.data.role
+                console.log("DATA LOGIN:", userData)
+                const role = userData.role
 
-                if (data.data.idUser) storeCookie("id", data.data.idUser)
-                if (data.data.idAdmin) storeCookie("id", data.data.idAdmin)
+                // Backend handles HttpOnly token & role cookies.
+                // We keep role and user data in js-cookie for client-side UI access.
+                storeCookie("email", userData.email)
+                storeCookie("role", role)
+
+                const displayName = userData.full_name || userData.userName
+                if (displayName) storeCookie("name", displayName)
+                if (userData.userName) storeCookie("userName", userData.userName)
+
+                if (userData.idUser) storeCookie("id", String(userData.idUser))
+                if (userData.idAdmin) storeCookie("id", String(userData.idAdmin))
 
                 if (role === "ADMIN") {
-                    setTimeout(() => router.replace("/admin/home"), 1000)
+                    setTimeout(() => window.location.href = "/admin/dashboard", 1000)
                 } else if (role === "TENTOR") {
-                    setTimeout(() => router.replace("/tentor/home"), 1000)
+                    setTimeout(() => window.location.href = "/tentor/dashboard", 1000)
                 } else {
-                    setTimeout(() => router.replace("/student/home"), 1000)
+                    setTimeout(() => window.location.href = "/student/dashboard", 1000)
                 }
             } else {
-                toast(data.message, {
+                toast(data?.message || "Login gagal", {
                     hideProgressBar: true,
                     containerId: "toastLogin",
                     type: "warning",
@@ -57,6 +64,12 @@ export default function LoginPage() {
         } catch (error: any) {
             if (error.response?.status === 404) {
                 toast("User tidak ditemukan, coba periksa kembali email dan password Anda.", {
+                    containerId: "toastLogin",
+                    type: "error",
+                    hideProgressBar: true,
+                })
+            } else if (error.response?.status === 401) {
+                toast("Email atau password salah. Silakan coba kembali.", {
                     containerId: "toastLogin",
                     type: "error",
                     hideProgressBar: true,

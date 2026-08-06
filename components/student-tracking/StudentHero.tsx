@@ -46,7 +46,7 @@ export function StudentHero({ overview }: StudentHeroProps) {
           <HeroStat
             icon={<GraduationCap className="h-4 w-4" aria-hidden="true" />}
             label="Learners"
-            value={overview.learnerCount}
+            value={overview.totalStudents}
           />
           <HeroStat
             icon={<Trophy className="h-4 w-4" aria-hidden="true" />}

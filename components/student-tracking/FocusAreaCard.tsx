@@ -1,7 +1,7 @@
 "use client";
 
 import type { FocusArea } from "@/types/student";
-import { getSubjectTheme } from "@/lib/student/subjectTheme";
+import { getSubjectTheme } from "@/lib/theme/subject-themes";
 import { cn } from "@/lib/student/cn";
 
 interface FocusAreaCardProps {
@@ -35,7 +35,7 @@ export function FocusAreaCard({ focusAreas, onAssignPractice }: FocusAreaCardPro
 
       <ul className="space-y-3" role="list">
         {focusAreas.map((area) => {
-          const theme = getSubjectTheme(area.subject);
+          const theme = getSubjectTheme(area.subject as any);
           return (
             <li
               key={area.id}
@@ -69,8 +69,8 @@ export function FocusAreaCard({ focusAreas, onAssignPractice }: FocusAreaCardPro
                 className="hidden h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-slate-100 sm:block"
               >
                 <div
-                  className="h-full rounded-full transition-[width] duration-700 ease-out"
-                  style={{ width: `${area.mastery}%`, backgroundColor: theme.previewAccent }}
+                  className={cn("h-full rounded-full transition-[width] duration-700 ease-out", theme.progressFill)}
+                  style={{ width: `${area.mastery}%` }}
                 />
               </div>
             </li>

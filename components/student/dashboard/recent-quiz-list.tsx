@@ -39,7 +39,7 @@ export function RecentQuizList({ data }: RecentQuizListProps) {
                     const accuracy = Math.round((quiz.correct / quiz.total_questions) * 100);
                     return (
                         <motion.div
-                            key={quiz.quiz_uuid}
+                            key={quiz.score_uuid}
                             initial={{ opacity: 0, x: -8 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: i * 0.05, duration: 0.3 }}
@@ -80,10 +80,10 @@ export function RecentQuizList({ data }: RecentQuizListProps) {
 
                             {/* Action */}
                             <div className="shrink-0">
-                                <Link href={`/student/review/${quiz.quiz_uuid}`}>
+                                <Link href={`/student/quiz/${quiz.quiz_uuid}/result`}>
                                     <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#1D61D2] bg-[#EAF3FF] hover:bg-[#DBEAFE] transition-colors">
                                         <RotateCcw size={11} />
-                                        Review
+                                        Hasil
                                     </button>
                                 </Link>
                             </div>

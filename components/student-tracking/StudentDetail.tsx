@@ -1,19 +1,29 @@
 "use client"
 
-import { AlertTriangle, Award, Mail, MessageSquare } from "lucide-react"
-import type { StudentDetailBundle } from "@/types/student"
+import { AlertTriangle, Award, Mail, MessageSquare, BookOpen, TrendingUp, CheckCircle2 } from "lucide-react"
+import type { StudentDetailBundle, ModuleMastery } from "@/types/student"
 import { formatRelativeTime } from "@/lib/student/format"
-import { getSubjectTheme } from "@/lib/theme/subject-themes"
 import { cn } from "@/lib/student/cn"
 
 interface StudentDetailProps {
   detail: StudentDetailBundle;
 }
 
+function getScoreColor(score: number): string {
+  if (score >= 80) return "text-emerald-600 bg-emerald-50"
+  if (score >= 60) return "text-amber-600 bg-amber-50"
+  return "text-rose-600 bg-rose-50"
+}
+
 export function StudentDetail({ detail }: StudentDetailProps) {
-  const { student } = detail;
-  const strongestTheme = getSubjectTheme(student.strongestSubject);
-  const weakestTheme = getSubjectTheme(student.weakestSubject);
+  const { student, subjectMastery } = detail
+
+  // Cari module terbaik dan terlemah dari subjectMastery
+  const sorted = [...(subjectMastery ?? [])].sort(
+    (a, b) => (b.average_score ?? 0) - (a.average_score ?? 0)
+  )
+  const strongest: ModuleMastery | undefined = sorted[0]
+  const weakest: ModuleMastery | undefined = sorted[sorted.length - 1]
 
   return (
     <section
@@ -51,39 +61,49 @@ export function StudentDetail({ detail }: StudentDetailProps) {
           {student.className} · {formatRelativeTime(student.lastActiveAt)}
         </p>
 
+        {/* Quick stat chips */}
         <dl className="mt-4 flex flex-wrap gap-2">
           <StatChip label="Avg" value={`${student.averageScore}%`} tone="text-blue-600" />
           <StatChip label="Done" value={`${student.completionRate}%`} tone="text-pink-600" />
           <StatChip label="Streak" value={`${student.streakDays}d`} tone="text-amber-600" />
         </dl>
 
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <div className={cn("rounded-xl p-3", strongestTheme.badge)}>
-            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider opacity-80">
-              <Award className="h-3 w-3" aria-hidden="true" />
-              Strongest in
-            </p>
-            <p className={cn("mt-1 text-sm font-bold", strongestTheme.text)}>
-              {detail.subjectMastery.find((m) => m.subject === student.strongestSubject)?.label ??
-                strongestTheme.label}{" "}
-              · {student.strongestSubjectScore}%
-            </p>
+        {/* Best / Needs Work modules */}
+        {(strongest || weakest) && (
+          <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {strongest && (
+              <div className="rounded-xl bg-emerald-50 p-3">
+                <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-emerald-600">
+                  <Award className="h-3 w-3" aria-hidden="true" />
+                  Modul Terkuat
+                </p>
+                <p className="mt-1 text-sm font-bold text-emerald-800 truncate">
+                  {strongest.module_name || strongest.label}
+                </p>
+                <p className="text-[11px] text-emerald-600">
+                  {strongest.subject_name} · {strongest.average_score ?? 0} pts
+                </p>
+              </div>
+            )}
+            {weakest && weakest.subject !== strongest?.subject && (
+              <div className="rounded-xl bg-rose-50 p-3">
+                <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-rose-500">
+                  <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                  Perlu Ditingkatkan
+                </p>
+                <p className="mt-1 text-sm font-bold text-rose-700 truncate">
+                  {weakest.module_name || weakest.label}
+                </p>
+                <p className="text-[11px] text-rose-500">
+                  {weakest.subject_name} · {weakest.average_score ?? 0} pts
+                </p>
+              </div>
+            )}
           </div>
-          <div className="rounded-xl bg-rose-50 p-3">
-            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-rose-500">
-              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-              Needs work in
-            </p>
-            <p className="mt-1 text-sm font-bold text-rose-700">
-              {detail.subjectMastery.find((m) => m.subject === student.weakestSubject)?.label ??
-                weakestTheme.label}{" "}
-              · {student.weakestSubjectScore}%
-            </p>
-          </div>
-        </div>
+        )}
       </div>
     </section>
-  );
+  )
 }
 
 function StatChip({
@@ -91,9 +111,9 @@ function StatChip({
   value,
   tone,
 }: {
-  label: string;
-  value: string;
-  tone: string;
+  label: string
+  value: string
+  tone: string
 }) {
   return (
     <div className="rounded-lg bg-slate-50 px-3 py-1.5 text-center">
@@ -102,5 +122,5 @@ function StatChip({
       </dt>
       <dd className={cn("text-sm font-bold", tone)}>{value}</dd>
     </div>
-  );
+  )
 }

@@ -2,7 +2,6 @@
 
 import { Search, SlidersHorizontal } from "lucide-react"
 import type { QuickFilterKey, SortKey } from "@/types/student"
-import { classList } from "@/constants/dummy/students"
 import { cn } from "@/lib/student/cn"
 
 interface SearchFilterBarProps {
@@ -10,6 +9,7 @@ interface SearchFilterBarProps {
   onSearchChange: (value: string) => void;
   classId: string;
   onClassChange: (value: string) => void;
+  classList: { id: string; label: string }[];
   sortKey: SortKey;
   onSortChange: (value: SortKey) => void;
   quickFilter: QuickFilterKey | null;
@@ -36,6 +36,7 @@ export function SearchFilterBar({
   onSearchChange,
   classId,
   onClassChange,
+  classList,
   sortKey,
   onSortChange,
   quickFilter,

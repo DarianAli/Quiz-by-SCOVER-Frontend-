@@ -4,12 +4,15 @@ import { ArrowRight, Clock, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import ProfilePicTest from "@/public/images/profile.png";
 import { IRecentActivity } from "@/app/types";
+import { Pagination, PaginationData } from "@/components/shared/Pagination";
 
 interface RecentActivityTableProps {
   data: IRecentActivity[];
+  pagination?: PaginationData;
+  onPageChange?: (page: number) => void;
 }
 
-export const RecentActivityTable = ({ data }: RecentActivityTableProps) => {
+export const RecentActivityTable = ({ data, pagination, onPageChange }: RecentActivityTableProps) => {
   const getScoreBadgeClass = (score: number) => {
     if (score >= 90) return "bg-emerald-50 text-emerald-700 border-emerald-100";
     if (score >= 70) return "bg-amber-50 text-amber-700 border-amber-100";
@@ -115,6 +118,9 @@ export const RecentActivityTable = ({ data }: RecentActivityTableProps) => {
           </tbody>
         </table>
       </div>
+      {pagination && (
+        <Pagination pagination={pagination} onPageChange={onPageChange || (() => {})} />
+      )}
     </div>
   );
 };

@@ -1,10 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { getSubjectTheme, type SubjectThemeKey } from "@/lib/theme/subject-themes"
-import type { Difficulty, QuizItem } from "@/constants/dummy/subjectData"
+import { Difficulty, IQuiz } from "@/app/types"
 
 export interface RecentQuizRowData {
-  quiz: QuizItem
+  quiz: IQuiz
   subjectName: string
   subjectTheme: SubjectThemeKey
   icon: React.ReactNode
@@ -13,9 +14,9 @@ export interface RecentQuizRowData {
 interface RecentQuizzesPanelProps {
   rows: RecentQuizRowData[]
   onCreateQuiz: () => void
-  onContinueEditing: (idQuiz: number) => void
-  onStartAddingQuestions: (idQuiz: number) => void
-  onReviewSubmissions?: (idQuiz: number) => void
+  onContinueEditing: (idQuiz: string) => void
+  onStartAddingQuestions: (idQuiz: string) => void
+  onReviewSubmissions?: (idQuiz: string) => void
 }
 
 const difficultyTone: Record<Difficulty, string> = {
@@ -31,6 +32,24 @@ export default function RecentQuizzesPanel({
   onStartAddingQuestions,
   onReviewSubmissions,
 }: RecentQuizzesPanelProps) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 5
+  
+  const totalPages = Math.max(1, Math.ceil(rows.length / itemsPerPage))
+  const validCurrentPage = Math.min(currentPage, totalPages)
+  
+  const startIndex = (validCurrentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentRows = rows.slice(startIndex, endIndex)
+  
+  const handlePrevious = () => {
+    if (validCurrentPage > 1) setCurrentPage(validCurrentPage - 1)
+  }
+
+  const handleNext = () => {
+    if (validCurrentPage < totalPages) setCurrentPage(validCurrentPage + 1)
+  }
+
   return (
     <div className="bg-white rounded-2xl ring-1 ring-slate-100 p-5">
       <div className="flex items-center justify-between mb-4">
@@ -54,17 +73,18 @@ export default function RecentQuizzesPanel({
         </div>
       ) : (
         <div className="space-y-3">
-          {rows.map(({ quiz, subjectName, subjectTheme, icon }) => {
+          {currentRows.map(({ quiz, subjectName, subjectTheme, icon }) => {
             const theme = getSubjectTheme(subjectTheme)
-            const isPublished = quiz.status === "COMPLETED"
-            const hasQuestions = quiz.questions.length > 0
+            const isPublished = quiz.status === "PUBLISHED"
+            const questions = quiz.questions || []
+            const hasQuestions = questions.length > 0
             // progress kasar: proporsi soal yang sudah terisi teksnya
-            const filled = quiz.questions.filter((q) => q.question_text.trim().length > 0).length
-            const progress = quiz.questions.length ? Math.round((filled / quiz.questions.length) * 100) : 0
+            const filled = questions.filter((q) => q.question_text.trim().length > 0).length
+            const progress = questions.length ? Math.round((filled / questions.length) * 100) : 0
 
             return (
               <div
-                key={quiz.idQuiz}
+                key={quiz.uuid}
                 className="rounded-xl border border-slate-100 p-4 transition-all duration-150 hover:shadow-sm"
               >
                 <div className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
@@ -84,7 +104,7 @@ export default function RecentQuizzesPanel({
                     </div>
                     <div className="flex items-center gap-2 flex-wrap mt-1 text-xs text-slate-500">
                       <span className={`px-1.5 py-0.5 rounded ${theme.badge}`}>{subjectName}</span>
-                      <span>📄 {quiz.questions.length} questions</span>
+                      <span>📄 {questions.length} questions</span>
                       <span>⏱ {quiz.duration} min</span>
                       <span className={`px-1.5 py-0.5 rounded-md ${difficultyTone[quiz.difficulty]}`}>
                         {quiz.difficulty.charAt(0) + quiz.difficulty.slice(1).toLowerCase()}
@@ -95,14 +115,14 @@ export default function RecentQuizzesPanel({
                   {hasQuestions ? (
                     isPublished && onReviewSubmissions ? (
                       <button
-                        onClick={() => onReviewSubmissions(quiz.idQuiz)}
+                        onClick={() => onReviewSubmissions(quiz.uuid)}
                         className="h-9 px-4 rounded-xl bg-slate-900 text-white text-xs font-semibold whitespace-nowrap hover:bg-slate-800 transition-all duration-150"
                       >
                         ↗ Review submissions
                       </button>
                     ) : (
                       <button
-                        onClick={() => onContinueEditing(quiz.idQuiz)}
+                        onClick={() => onContinueEditing(quiz.uuid)}
                         className={`h-9 px-4 rounded-xl text-white text-xs font-semibold whitespace-nowrap transition-all duration-150 hover:scale-[1.02] ${theme.button}`}
                       >
                         ✎ Continue editing
@@ -110,7 +130,7 @@ export default function RecentQuizzesPanel({
                     )
                   ) : (
                     <button
-                      onClick={() => onStartAddingQuestions(quiz.idQuiz)}
+                      onClick={() => onStartAddingQuestions(quiz.uuid)}
                       className={`h-9 px-4 rounded-xl text-white text-xs font-semibold whitespace-nowrap transition-all duration-150 hover:scale-[1.02] ${theme.button}`}
                     >
                       + Start adding questions
@@ -127,6 +147,28 @@ export default function RecentQuizzesPanel({
               </div>
             )
           })}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
+              <button
+                onClick={handlePrevious}
+                disabled={validCurrentPage === 1}
+                className="h-9 px-4 rounded-xl bg-white ring-1 ring-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all duration-150 disabled:opacity-50 disabled:hover:bg-white disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+              >
+                &larr; Previous
+              </button>
+              <span className="text-xs font-medium text-slate-500">
+                Page {validCurrentPage} of {totalPages}
+              </span>
+              <button
+                onClick={handleNext}
+                disabled={validCurrentPage === totalPages}
+                className="h-9 px-4 rounded-xl bg-white ring-1 ring-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-all duration-150 disabled:opacity-50 disabled:hover:bg-white disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Next &rarr;
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

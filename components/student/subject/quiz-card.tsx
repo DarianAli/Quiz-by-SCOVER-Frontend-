@@ -40,20 +40,25 @@ function QuizActionButton({ quiz }: { quiz: IStudentQuizCard }) {
         );
     }
 
+    // It's COMPLETED
+    const canRetake = quiz.retake_policy !== "ONCE";
+
     return (
         <div className="flex items-center gap-2">
-            <Link href={`/student/review/${quiz.uuid}`}>
+            <Link href={`/student/quiz/${quiz.uuid}/result`}>
                 <button className="flex items-center gap-1.5 px-4 py-2 bg-[#EAF3FF] text-[#1D61D2] text-sm font-bold rounded-xl hover:bg-[#DBEAFE] transition-colors active:scale-95">
                     <Eye size={13} />
-                    Review
+                    Lihat Hasil
                 </button>
             </Link>
-            <Link href={`/student/quiz/${quiz.uuid}`}>
-                <button className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors active:scale-95">
-                    <RotateCcw size={13} />
-                    Ulangi
-                </button>
-            </Link>
+            {canRetake && (
+                <Link href={`/student/quiz/${quiz.uuid}`}>
+                    <button className="flex items-center gap-1.5 px-4 py-2 bg-gray-100 text-gray-600 text-sm font-bold rounded-xl hover:bg-gray-200 transition-colors active:scale-95">
+                        <RotateCcw size={13} />
+                        Ulangi
+                    </button>
+                </Link>
+            )}
         </div>
     );
 }

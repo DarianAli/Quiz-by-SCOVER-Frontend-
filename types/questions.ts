@@ -1,11 +1,29 @@
 import type { QuestionTypeKey } from "@/lib/theme/question-type-themes"
-import type { QuestionItem, OptionItem, MatchingPair } from "@/constants/dummy/subjectData"
+export interface MatchingPair {
+  id: number | string;
+  left: string;
+  right: string;
+}
 
-// Re-exported for backward compatibility — MatchingPair now lives in
-// constants/dummy/subjectData.ts so QuestionItem can reference it directly
-// without a circular import. Anything importing MatchingPair from this file
-// keeps working unchanged.
-export type { MatchingPair }
+export interface OptionItem {
+  idOption: number;
+  option_text: string;
+  option_image?: string;
+  is_correct: boolean;
+}
+
+export interface QuestionItem {
+  idQuestion: number;
+  question_type: QuestionTypeKey;
+  question_text: string;
+  question_image?: string;
+  poin: number;
+  difficulty: DifficultyKey;
+  tag?: string;
+  explanation?: string;
+  options: OptionItem[];
+  pairs?: MatchingPair[];
+}
 
 export type DifficultyKey = "EASY" | "MEDIUM" | "HARD"
 
