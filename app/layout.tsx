@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
+import QueryProvider from "@/components/providers/query-provider";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -10,8 +13,8 @@ const poppins = Poppins({
 });
 
 export const metadata: Metadata = {
-  title: "SCOVER – Quiz Platform",
-  description: "Login to your SCOVER quiz account",
+  title: "LMS Admin Dashboard | SCOVER Quiz Platform",
+  description: "Enterprise SaaS LMS Admin Dashboard for SCOVER",
 };
 
 export default function RootLayout({
@@ -20,11 +23,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${poppins.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`${poppins.variable} h-full antialiased`}>
+      <body className="min-h-full flex flex-col bg-[#F7FAFF] text-slate-900">
+        <QueryProvider>
+          {children}
+          <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
+        </QueryProvider>
+      </body>
     </html>
   );
 }

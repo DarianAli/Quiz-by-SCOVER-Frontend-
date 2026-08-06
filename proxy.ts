@@ -40,6 +40,8 @@ export function proxy(request: NextRequest) {
       } else if (role === 'STUDENT') {
         return NextResponse.redirect(new URL('/student/dashboard', request.url))
       }
+    } else if (pathname === '/') {
+      return NextResponse.redirect(new URL('/login', request.url))
     }
   }
 

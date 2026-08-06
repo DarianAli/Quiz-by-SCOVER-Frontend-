@@ -8,6 +8,7 @@ import {
     BookOpen, Send, AlertCircle,
 } from "lucide-react";
 import { DifficultyBadge } from "@/components/student/shared/badge";
+import { Difficulty } from "@/app/types";
 import {
     QuizTimer,
     QuestionNavigator,
@@ -17,7 +18,7 @@ import {
 import { get, post } from "@/lib/api-bridge";
 import { getCookie } from "@/lib/client-cookie";
 import { BASE_API_URL } from "@/global";
-import { Difficulty } from "@/app/types";
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface QuizOption {

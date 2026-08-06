@@ -16,10 +16,11 @@ type Props = {
     totalStudents: number;
     tentors: TentorAvatar[];
     isMyClass?: boolean;
-    /** Target kurikulum tahunan (jumlah modul/quiz). null = belum diatur admin. */
+    /** Target kurikulum tahunan (annual_quiz_target) — jumlah quiz yang ditargetkan setahun. Basis perhitungan progress. null/0 = belum diatur admin. */
     annualGoal?: number | null;
-    /** Persentase progress terhadap annualGoal. null = tidak bisa dihitung (annualGoal belum ada). */
-    curriculumProgress?: number | null;
+    /** Jumlah quiz berstatus PUBLISHED. Modul tidak punya status "selesai" sendiri, jadi progress selalu dihitung dari quiz. */
+    completedQuizzes?: number;
+    curriculumProgress?: number
 };
 
 function initials(name: string): string {
@@ -72,9 +73,18 @@ const SubjectCard = ({
     tentors,
     isMyClass = false,
     annualGoal = null,
-    curriculumProgress = null,
+    completedQuizzes = 0,
+    curriculumProgress,
 }: Props) => {
     const theme = getSubjectTheme(themeKey);
+
+    // annual_quiz_target adalah basis progress — sama seperti admin dashboard.
+    // Modul tidak punya status "selesai", jadi progress dihitung dari jumlah quiz
+    // PUBLISHED terhadap target quiz tahunan, bukan dari data modul.
+    const hasTarget = annualGoal != null && annualGoal > 0;
+    const progress = curriculumProgress ?? (
+        hasTarget ? Math.min(100, Math.round((completedQuizzes / (annualGoal as number)) * 100)) : 0
+    )
 
     return (
         <div
@@ -117,17 +127,19 @@ const SubjectCard = ({
                 <div className="flex justify-between items-end mb-1.5">
                     <span className="text-xs text-slate-500">Curriculum progress</span>
                     <span className={`text-xs font-semibold ${theme.text}`}>
-                        {curriculumProgress !== null ? `${curriculumProgress}%` : "—"}
+                        {hasTarget ? `${progress}%` : "—"}
                     </span>
                 </div>
                 <div className="h-1.5 rounded-full bg-black/5 overflow-hidden">
                     <div
                         className={`h-full rounded-full ${theme.progressFill} transition-all duration-700 ease-out`}
-                        style={{ width: `${curriculumProgress ?? 0}%` }}
+                        style={{ width: `${progress}%` }}
                     />
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                    {annualGoal ? `Annual goal · ${annualGoal} modul` : "Target tahunan belum diatur"}
+                    {hasTarget
+                        ? `${completedQuizzes} dari ${annualGoal} kuis selesai`
+                        : "Target tahunan belum diatur"}
                 </p>
             </div>
         </div>

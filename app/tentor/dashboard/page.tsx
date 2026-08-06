@@ -95,11 +95,16 @@ export default function TeacherDashboard() {
             name: sub.subject_name,
             themeKey: pickSubjectTheme(sub.uuid),
             totalQuiz: sub.total_quiz ?? 0,
-            totalStudents: sub.total_students ?? 0,
+            // fix: backend mengirim `total_student` (singular), bukan `total_students`
+            totalStudents: sub.total_student ?? 0,
             tentors: sub.tentors ?? [],
             isMyClass: sub.is_my_class ?? false,
+            // annual_quiz_target adalah basis progress — persentase dihitung di dalam SubjectCard,
+            // bukan dikirim siap-jadi dari sini.
             annualGoal: sub.annual_quiz_target ?? null,
-            curriculumProgress: sub.curriculum_progress ?? null,
+            // jumlah quiz PUBLISHED (bukan modul — modul tidak punya status "selesai")
+            completedQuizzes: sub.completed_quizzes ?? 0,
+            curriculumProgress: sub.curriculum_progress ?? 0,
         }))
         // Subject milik kelas tentor yang sedang login tampil paling pertama.
         .sort((a, b) => (a.isMyClass === b.isMyClass ? 0 : a.isMyClass ? -1 : 1));
@@ -174,6 +179,7 @@ export default function TeacherDashboard() {
                                     tentors={sub.tentors}
                                     isMyClass={sub.isMyClass}
                                     annualGoal={sub.annualGoal}
+                                    completedQuizzes={sub.completedQuizzes}
                                     curriculumProgress={sub.curriculumProgress}
                                 />
                             </Link>

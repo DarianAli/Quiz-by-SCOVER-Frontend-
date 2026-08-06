@@ -11,7 +11,7 @@ export interface SubjectCardData {
   theme: SubjectThemeKey
   lessonCount: number
   studentCount: number
-  progress: number // 0-100
+  annual_quiz_target: number // 0-100
   isMyClass?: boolean
 }
 
@@ -25,9 +25,9 @@ export default function SubjectCard({ subject, onManage }: SubjectCardProps) {
   const [animatedProgress, setAnimatedProgress] = useState(0)
 
   useEffect(() => {
-    const t = setTimeout(() => setAnimatedProgress(subject.progress), 80)
+    const t = setTimeout(() => setAnimatedProgress(subject.annual_quiz_target), 80)
     return () => clearTimeout(t)
-  }, [subject.progress])
+  }, [subject.annual_quiz_target])
 
   return (
     <div
@@ -57,7 +57,7 @@ export default function SubjectCard({ subject, onManage }: SubjectCardProps) {
 
       <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
         <span>Curriculum progress</span>
-        <span className={`font-semibold ${theme.text}`}>{subject.progress}%</span>
+        <span className={`font-semibold ${theme.text}`}>{subject.annual_quiz_target}%</span>
       </div>
       <div className="h-1.5 rounded-full bg-black/5 overflow-hidden mb-4">
         <div

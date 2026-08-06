@@ -111,12 +111,12 @@ export default function QuizDashboard({ onOpenEditor }: QuizDashboardProps) {
             subjectName={mySubject.subject_name}
             className={mySubject.assigned_class_name || "General Class"}
             annualGoal={mySubject.annual_quiz_target || 0}
-            completedModules={mySubject.completed_modules || 0}
-            curriculumProgress={mySubject.curriculum_progress || 0}
-            teachers={mySubject.tentors || []}
+            completedQuizzes={mySubject.completed_quizzes || 0}
+            curriculumProgress={mySubject.curriculum_progress ?? 0}
+            tentors={mySubject.tentors || []}
             stats={{
               activeQuiz: mySubject.total_quiz || 0,
-              studentsEngaged: mySubject.student_count || 0,
+              studentsEngaged: mySubject.total_student || 0,
               averageScore: mySubject.average_score || 0,
               completionRate: mySubject.completion_rate || 0,
             }}
