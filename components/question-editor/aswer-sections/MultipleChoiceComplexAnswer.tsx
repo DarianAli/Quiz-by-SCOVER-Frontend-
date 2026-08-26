@@ -1,6 +1,5 @@
 "use client"
 
-import { useRef, useState } from "react"
 import type { AnswerChoice } from "@/types/questions"
 import type { QuestionTypeTheme } from "@/lib/theme/question-type-themes"
 import MathEditorField from "@/components/shared/MathEditorField"
@@ -10,16 +9,16 @@ interface Props {
   theme: QuestionTypeTheme
   onAddChoice: () => void
   onUpdateChoice: (id: number, patch: Partial<AnswerChoice>) => void
-  onSetCorrectChoice: (id: number) => void
+  onToggleCorrect: (id: number) => void
   onRemoveChoice: (id: number) => void
 }
 
-export default function MultipleChoiceAnswer({
+export default function MultipleChoiceComplexAnswer({
   choices,
   theme,
   onAddChoice,
   onUpdateChoice,
-  onSetCorrectChoice,
+  onToggleCorrect,
   onRemoveChoice,
 }: Props) {
   return (
@@ -29,26 +28,40 @@ export default function MultipleChoiceAnswer({
           Answer choices
         </p>
         <p className="text-xs text-slate-400">
-          Tap the circle to mark the correct answer
+          Tick all correct answers (checkboxes)
         </p>
+      </div>
+
+      {/* Instruction banner */}
+      <div className="mb-3 px-3 py-2 rounded-xl bg-indigo-50 border border-indigo-100 text-xs text-indigo-700 font-medium">
+        ☑ Multiple Correct — tick every option that is a correct answer.
+        Students must select <strong>exactly</strong> the same set to score.
       </div>
 
       <div className="space-y-3">
         {choices.map((choice, i) => (
           <div key={choice.id} className="flex items-start gap-2.5">
-            {/* Correct marker button */}
+            {/* Checkbox-style correct marker */}
             <button
               type="button"
-              onClick={() => onSetCorrectChoice(choice.id)}
-              aria-label={`Mark answer ${String.fromCharCode(65 + i)} as correct`}
-              className={`mt-3 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all duration-200 ${
-                choice.isCorrect ? theme.selectedBorder : "border-slate-300"
+              onClick={() => onToggleCorrect(choice.id)}
+              aria-label={`Toggle answer ${String.fromCharCode(65 + i)} correct`}
+              className={`mt-3 w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all duration-200 ${
+                choice.isCorrect
+                  ? "border-indigo-500 bg-indigo-500"
+                  : "border-slate-300 bg-white"
               }`}
             >
               {choice.isCorrect && (
-                <span
-                  className={`w-2.5 h-2.5 rounded-full ${theme.iconBg} animate-fade-slide-up`}
-                />
+                <svg
+                  className="w-3 h-3 text-white"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="2,6 5,9 10,3" />
+                </svg>
               )}
             </button>
 

@@ -14,6 +14,7 @@ import {
     QuestionNavigator,
     SubmitModal,
 } from "@/components/student/quiz/quiz-components";
+import MathText from "@/components/shared/MathText";
 
 import { get, post } from "@/lib/api-bridge";
 import { getCookie } from "@/lib/client-cookie";
@@ -28,15 +29,27 @@ interface QuizOption {
     option_image?: string;
 }
 
+interface QuestionImage {
+    id: number;
+    filename: string;
+    url: string;
+    order_index: number;
+}
+
 interface QuizQuestion {
     idQuestion: number;
     uuid: string;
     question_text: string;
     question_image?: string;
+    question_images?: QuestionImage[];
     difficulty: string;
     question_type?: string;
     poin: number;
     options: QuizOption[];
+    allow_multiple_answers?: boolean;
+    is_strict?: boolean;
+    // Children for STORY_GROUP
+    children?: QuizQuestion[];
 }
 
 interface QuizData {
@@ -168,9 +181,23 @@ export default function QuizPage() {
 
     // ✅ Autosave jawaban menggunakan UUID — tidak ada integer ID di payload
     // Essay: debounced 600ms. Multiple choice: immediate.
-    const handleAnswer = useCallback((questionUuid: string, optionUuid?: string, answer_text?: string) => {
+    // handleAnswer supports three calling conventions:
+    // 1. Single choice: handleAnswer(qUuid, optionUuid)
+    // 2. Essay/FillBlank: handleAnswer(qUuid, undefined, "text")
+    // 3. Multiple Complex: handleAnswer(qUuid, undefined, undefined, ["optUuid1","optUuid2"])
+    const handleAnswer = useCallback((
+        questionUuid: string,
+        optionUuid?: string,
+        answer_text?: string,
+        optionUuids?: string[]
+    ) => {
         // Update local state immediately
-        setAnswers(prev => ({ ...prev, [questionUuid]: answer_text ?? (optionUuid as string) }));
+        if (optionUuids !== undefined) {
+            // Multiple complex: store as JSON-encoded array for display purposes
+            setAnswers(prev => ({ ...prev, [questionUuid]: JSON.stringify(optionUuids) }));
+        } else {
+            setAnswers(prev => ({ ...prev, [questionUuid]: answer_text ?? (optionUuid as string) }));
+        }
         if (!quiz || !uuid) return;
 
         const doSave = async () => {
@@ -180,6 +207,7 @@ export default function QuizPage() {
                     questionUuid,
                     optionUuid,
                     answer_text,
+                    optionUuids,
                 }, token);
             } catch (err) {
                 console.error("Failed to autosave answer", err);
@@ -187,11 +215,11 @@ export default function QuizPage() {
         };
 
         if (answer_text !== undefined) {
-            // Essay: debounce 600ms to avoid hammering the server on every keystroke
+            // Essay / FillBlank: debounce 600ms
             if (debounceRef.current) clearTimeout(debounceRef.current);
             debounceRef.current = setTimeout(() => doSave(), 600);
         } else {
-            // Multiple choice: save immediately
+            // Multiple choice / complex: save immediately
             doSave();
         }
     }, [quiz, uuid]);
@@ -371,24 +399,44 @@ export default function QuizPage() {
                                             <span className="text-[11px] text-gray-300">{currentQuestion?.poin ?? 0} poin</span>
                                         </div>
                                     </div>
-                                    <p className="text-base md:text-lg font-semibold text-[#0d4669] leading-relaxed">
-                                        {currentQuestion?.question_text}
-                                    </p>
-                                    {currentQuestion?.question_image && (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img
-                                            src={currentQuestion.question_image}
-                                            alt="Gambar soal"
-                                            className="mt-4 rounded-xl max-h-48 object-contain border border-gray-100"
-                                        />
+                                    <MathText
+                                        text={currentQuestion?.question_text ?? ""}
+                                        className="text-base md:text-lg font-semibold text-[#0d4669] leading-relaxed"
+                                    />
+                                    {/* Multiple images / attached image support (when not already embedded inline in question_text) */}
+                                    {!currentQuestion?.question_text?.includes("![") && (
+                                        currentQuestion?.question_images && currentQuestion.question_images.length > 0 ? (
+                                            <div className="mt-4 flex flex-col gap-3">
+                                                {currentQuestion.question_images.map((img) => (
+                                                    // eslint-disable-next-line @next/next/no-img-element
+                                                    <img
+                                                        key={img.id}
+                                                        src={img.url.startsWith("http") || img.url.startsWith("data:") ? img.url : `${BASE_API_URL}${img.url.startsWith("/") ? "" : "/"}${img.url}`}
+                                                        alt="Gambar soal"
+                                                        className="rounded-xl max-h-48 object-contain border border-gray-100"
+                                                    />
+                                                ))}
+                                            </div>
+                                        ) : currentQuestion?.question_image ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={currentQuestion.question_image.startsWith("http") || currentQuestion.question_image.startsWith("data:") ? currentQuestion.question_image : `${BASE_API_URL}/public/question_image/${currentQuestion.question_image}`}
+                                                alt="Gambar soal"
+                                                className="mt-4 rounded-xl max-h-48 object-contain border border-gray-100"
+                                            />
+                                        ) : null
                                     )}
                                 </div>
 
                                 {/* Options / Answer Input */}
                                 {(() => {
                                     const qType = currentQuestion?.question_type?.toUpperCase();
-                                    const isEssayType = qType === 'ESSAY' || qType === 'SHORT_ANSWER';
+                                    const isEssayType    = qType === 'ESSAY' || qType === 'SHORT_ANSWER';
+                                    const isFillBlank    = qType === 'FILL_BLANK';
+                                    const isMultiComplex = qType === 'MULTIPLE_COMPLEX' || currentQuestion?.allow_multiple_answers;
+                                    const isStoryGroup   = qType === 'STORY_GROUP';
 
+                                    // ── Essay / Short Answer ──────────────────────────────────
                                     if (isEssayType) {
                                         return (
                                             <div className="px-5 md:px-7 py-5">
@@ -403,6 +451,201 @@ export default function QuizPage() {
                                         );
                                     }
 
+                                    // ── Fill in the Blank ─────────────────────────────────────
+                                    if (isFillBlank) {
+                                        return (
+                                            <div className="px-5 md:px-7 py-5">
+                                                <label className="block text-xs font-semibold text-gray-500 mb-2">
+                                                    Ketik jawaban untuk melengkapi blank:
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    className="w-full p-3.5 rounded-xl border-2 border-gray-100 bg-white focus:border-teal-400 focus:ring-4 focus:ring-teal-400/10 transition-all duration-200 text-sm text-gray-700 outline-none placeholder:text-gray-300"
+                                                    placeholder="Ketik jawaban di sini..."
+                                                    value={currentQuestion ? (answers[currentQuestion.uuid] || "") : ""}
+                                                    onChange={(e) => currentQuestion && handleAnswer(currentQuestion.uuid, undefined, e.target.value)}
+                                                />
+                                                {currentQuestion?.is_strict && (
+                                                    <p className="text-[11px] text-teal-600 mt-1.5 font-medium">
+                                                        ⚠ Case-sensitive — perhatikan huruf kapital.
+                                                    </p>
+                                                )}
+                                                <p className="text-xs text-gray-400 mt-1.5">Jawaban akan disimpan otomatis.</p>
+                                            </div>
+                                        );
+                                    }
+
+                                    // ── Multiple Complex (checkbox) ───────────────────────────
+                                    if (isMultiComplex) {
+                                        // Parse selected UUIDs from state (stored as JSON array string)
+                                        let selectedUuids: string[] = [];
+                                        try {
+                                            const raw = currentQuestion ? (answers[currentQuestion.uuid] || "[]") : "[]";
+                                            selectedUuids = JSON.parse(raw);
+                                            if (!Array.isArray(selectedUuids)) selectedUuids = [];
+                                        } catch { selectedUuids = []; }
+
+                                        const toggleOption = (optUuid: string) => {
+                                            if (!currentQuestion) return;
+                                            const next = selectedUuids.includes(optUuid)
+                                                ? selectedUuids.filter(u => u !== optUuid)
+                                                : [...selectedUuids, optUuid];
+                                            handleAnswer(currentQuestion.uuid, undefined, undefined, next);
+                                        };
+
+                                        return (
+                                            <div className="px-5 md:px-7 py-5 space-y-3">
+                                                <p className="text-xs text-indigo-600 font-semibold bg-indigo-50 px-3 py-2 rounded-xl border border-indigo-100">
+                                                    ☑ Pilih SEMUA jawaban yang benar.
+                                                </p>
+                                                {currentQuestion?.options?.map((option, oi) => {
+                                                    const isSelected = selectedUuids.includes(option.uuid);
+                                                    const optionLabel = String.fromCharCode(65 + oi);
+                                                    return (
+                                                        <motion.button
+                                                            key={option.uuid}
+                                                            whileTap={{ scale: 0.98 }}
+                                                            onClick={() => toggleOption(option.uuid)}
+                                                            className={[
+                                                                "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left",
+                                                                "transition-all duration-200 group",
+                                                                isSelected
+                                                                    ? "border-indigo-500 bg-indigo-50 shadow-sm"
+                                                                    : "border-gray-100 bg-white hover:border-indigo-200 hover:bg-indigo-50/30",
+                                                            ].join(" ")}
+                                                            aria-pressed={isSelected}
+                                                            aria-label={`Pilihan ${optionLabel}: ${option.option_text}`}
+                                                        >
+                                                            {/* Checkbox indicator */}
+                                                            <div className={[
+                                                                "shrink-0 w-7 h-7 rounded-lg border-2 flex items-center justify-center text-xs font-black transition-all duration-200",
+                                                                isSelected
+                                                                    ? "bg-indigo-500 border-indigo-500 text-white"
+                                                                    : "border-gray-200 bg-gray-50 text-gray-500",
+                                                            ].join(" ")}>
+                                                                {isSelected ? "✓" : optionLabel}
+                                                            </div>
+                                                            <MathText
+                                                                text={option.option_text}
+                                                                className={`text-sm leading-relaxed flex-1 ${isSelected ? "text-indigo-900 font-semibold" : "text-gray-700"}`}
+                                                            />
+                                                        </motion.button>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    }
+
+                                    // ── Story Group: story already shown in prompt, show children ──
+                                    if (isStoryGroup) {
+                                        const children = currentQuestion?.children ?? [];
+                                        return (
+                                            <div className="px-5 md:px-7 py-5 space-y-6">
+                                                {children.length === 0 && (
+                                                    <p className="text-sm text-gray-400 italic">
+                                                        Soal ini belum memiliki pertanyaan lanjutan.
+                                                    </p>
+                                                )}
+                                                {children.map((child, ci) => {
+                                                    const childType  = child.question_type?.toUpperCase();
+                                                    const childLabel = String.fromCharCode(97 + ci); // a, b, c ...
+                                                    const childAnswerRaw = answers[child.uuid] || "";
+
+                                                    return (
+                                                        <div key={child.uuid} className="border border-amber-100 rounded-2xl overflow-hidden bg-white">
+                                                            {/* Child question header */}
+                                                            <div className="px-4 pt-4 pb-2 border-b border-amber-50">
+                                                                <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">
+                                                                    {ci + 1}. {child.question_type?.replace("_", " ")} · {child.poin} pts
+                                                                </span>
+                                                                <MathText
+                                                                    text={child.question_text}
+                                                                    className="text-sm font-semibold text-[#0d4669] mt-1 leading-relaxed"
+                                                                />
+                                                            </div>
+
+                                                            {/* Child answer area */}
+                                                            <div className="p-4">
+                                                                {(childType === 'ESSAY' || childType === 'SHORT_ANSWER') ? (
+                                                                    <textarea
+                                                                        className="w-full min-h-[100px] p-3 rounded-xl border-2 border-gray-100 bg-white focus:border-amber-400 focus:ring-4 focus:ring-amber-400/10 transition-all text-sm text-gray-700 outline-none placeholder:text-gray-300 resize-y"
+                                                                        placeholder="Ketik jawaban..."
+                                                                        value={childAnswerRaw}
+                                                                        onChange={(e) => handleAnswer(child.uuid, undefined, e.target.value)}
+                                                                    />
+                                                                ) : childType === 'FILL_BLANK' ? (
+                                                                    <input
+                                                                        type="text"
+                                                                        className="w-full p-3 rounded-xl border-2 border-gray-100 bg-white focus:border-teal-400 focus:ring-4 focus:ring-teal-400/10 transition-all text-sm text-gray-700 outline-none placeholder:text-gray-300"
+                                                                        placeholder="Isi blank..."
+                                                                        value={childAnswerRaw}
+                                                                        onChange={(e) => handleAnswer(child.uuid, undefined, e.target.value)}
+                                                                    />
+                                                                ) : (
+                                                                    <div className="space-y-2">
+                                                                        {child.options?.map((opt, oi) => {
+                                                                            const childType2 = child.question_type?.toUpperCase();
+                                                                            const isMulti2 = childType2 === 'MULTIPLE_COMPLEX' || child.allow_multiple_answers;
+                                                                            let isSelected2 = false;
+
+                                                                            if (isMulti2) {
+                                                                                try {
+                                                                                    const arr = JSON.parse(childAnswerRaw || "[]");
+                                                                                    isSelected2 = Array.isArray(arr) && arr.includes(opt.uuid);
+                                                                                } catch { isSelected2 = false; }
+                                                                            } else {
+                                                                                isSelected2 = childAnswerRaw === opt.uuid;
+                                                                            }
+
+                                                                            const optLabel = String.fromCharCode(65 + oi);
+                                                                            return (
+                                                                                <motion.button
+                                                                                    key={opt.uuid}
+                                                                                    whileTap={{ scale: 0.98 }}
+                                                                                    onClick={() => {
+                                                                                        if (isMulti2) {
+                                                                                            let arr: string[] = [];
+                                                                                            try { arr = JSON.parse(childAnswerRaw || "[]"); } catch {}
+                                                                                            const next = arr.includes(opt.uuid)
+                                                                                                ? arr.filter(u => u !== opt.uuid)
+                                                                                                : [...arr, opt.uuid];
+                                                                                            handleAnswer(child.uuid, undefined, undefined, next);
+                                                                                        } else {
+                                                                                            handleAnswer(child.uuid, opt.uuid);
+                                                                                        }
+                                                                                    }}
+                                                                                    className={[
+                                                                                        "w-full flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all duration-200 group",
+                                                                                        isSelected2
+                                                                                            ? "border-amber-400 bg-amber-50 shadow-sm"
+                                                                                            : "border-gray-100 bg-white hover:border-amber-200 hover:bg-amber-50/30",
+                                                                                    ].join(" ")}
+                                                                                    aria-pressed={isSelected2}
+                                                                                >
+                                                                                    <div className={[
+                                                                                        "shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-black transition-all",
+                                                                                        isSelected2 ? "bg-amber-500 text-white" : "bg-gray-100 text-gray-500",
+                                                                                    ].join(" ")}>
+                                                                                        {isSelected2 && isMulti2 ? "✓" : optLabel}
+                                                                                    </div>
+                                                                                    <MathText
+                                                                                        text={opt.option_text}
+                                                                                        className={`text-sm flex-1 ${isSelected2 ? "text-amber-900 font-semibold" : "text-gray-700"}`}
+                                                                                    />
+                                                                                </motion.button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    }
+
+                                    // ── Standard single-choice (Multiple Choice, True/False) ──
                                     return (
                                         <div className="px-5 md:px-7 py-5 space-y-3">
                                             {currentQuestion?.options?.map((option, oi) => {
@@ -431,9 +674,10 @@ export default function QuizPage() {
                                                         ].join(" ")}>
                                                             {optionLabel}
                                                         </div>
-                                                        <span className={`text-sm leading-relaxed ${isSelected ? "text-[#0d4669] font-semibold" : "text-gray-700"}`}>
-                                                            {option.option_text}
-                                                        </span>
+                                                        <MathText
+                                                            text={option.option_text}
+                                                            className={`text-sm leading-relaxed ${isSelected ? "text-[#0d4669] font-semibold" : "text-gray-700"}`}
+                                                        />
                                                         {option.option_image && (
                                                             // eslint-disable-next-line @next/next/no-img-element
                                                             <img src={option.option_image} alt="" className="ml-auto w-16 h-16 object-contain rounded-lg" />

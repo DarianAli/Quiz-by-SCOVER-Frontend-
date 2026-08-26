@@ -23,6 +23,13 @@ export interface QuestionItem {
   explanation?: string;
   options: OptionItem[];
   pairs?: MatchingPair[];
+  // Story Group
+  children?: QuestionItem[];
+  parentId?: number | null;
+  // Multiple Complex
+  allow_multiple_answers?: boolean;
+  // Fill Blank
+  is_strict?: boolean;
 }
 
 export type DifficultyKey = "EASY" | "MEDIUM" | "HARD"
@@ -42,8 +49,14 @@ export interface QuestionFormValue {
   difficulty: DifficultyKey // -> questions.difficulty
   tag: string // -> questions.tag
   explanation: string // -> questions.explanation
-  choices: AnswerChoice[] // -> options[] (dipakai multiple_choice, true_false, short_answer, fill_blank)
-  pairs?: MatchingPair[] // -> questions.pairs — dipakai matching
+  choices: AnswerChoice[] // -> options[] (for most types; for fill_blank: each choice = one accepted answer)
+  pairs?: MatchingPair[] // -> questions.pairs — for matching
+  // Story Group: the child questions
+  storyChildren?: QuestionFormValue[]
+  // Multiple Complex: allow multi-select
+  allowMultipleAnswers?: boolean
+  // Fill Blank: strict case-sensitive validation
+  isStrict?: boolean
 }
 
 let nextChoiceId = 1000
@@ -60,6 +73,7 @@ export function getDefaultChoicesForType(type: QuestionTypeKey): AnswerChoice[] 
         { id: 2, text: "False", isCorrect: false },
       ]
     case "multiple_choice":
+    case "multiple_complex":
       return [
         { id: 1, text: "", isCorrect: true },
         { id: 2, text: "", isCorrect: false },
@@ -71,6 +85,7 @@ export function getDefaultChoicesForType(type: QuestionTypeKey): AnswerChoice[] 
       return [{ id: 1, text: "", isCorrect: true }]
     case "essay":
     case "matching":
+    case "story_group":
       return []
     default:
       return []
@@ -96,6 +111,9 @@ export const emptyQuestionForm = (type: QuestionTypeKey = "multiple_choice"): Qu
   explanation: "",
   choices: getDefaultChoicesForType(type),
   pairs: getDefaultPairsForType(type),
+  storyChildren: type === "story_group" ? [] : undefined,
+  allowMultipleAnswers: type === "multiple_complex" ? true : false,
+  isStrict: false,
 })
 
 /**
@@ -111,6 +129,8 @@ export function toBackendPayload(value: QuestionFormValue, quizId: number) {
     difficulty: value.difficulty,
     tag: value.tag || undefined,
     explanation: value.explanation || undefined,
+    allow_multiple_answers: value.allowMultipleAnswers ?? false,
+    is_strict: value.isStrict ?? false,
     options: value.choices.map((c) => ({
       option_text: c.text,
       option_image: c.image ?? "",
@@ -142,6 +162,9 @@ export function questionItemToFormValue(item: QuestionItem): QuestionFormValue {
       isCorrect: o.is_correct,
     })),
     pairs: item.pairs ?? getDefaultPairsForType(item.question_type),
+    allowMultipleAnswers: item.allow_multiple_answers ?? false,
+    isStrict: item.is_strict ?? false,
+    storyChildren: item.children?.map(questionItemToFormValue) ?? [],
   }
 }
 
@@ -158,6 +181,8 @@ export function formValueToQuestionItem(value: QuestionFormValue, existingId?: n
     poin: value.points,
     tag: value.tag || undefined,
     explanation: value.explanation || undefined,
+    allow_multiple_answers: value.allowMultipleAnswers ?? false,
+    is_strict: value.isStrict ?? false,
     options: value.choices.map(
       (c): OptionItem => ({
         idOption: c.id,

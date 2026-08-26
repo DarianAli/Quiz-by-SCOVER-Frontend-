@@ -4,6 +4,7 @@ import "./globals.css";
 import QueryProvider from "@/components/providers/query-provider";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import "katex/dist/katex.min.css"
 
 const poppins = Poppins({
   variable: "--font-poppins",

@@ -17,7 +17,7 @@ export const subjectService = {
     annual_quiz_target: number | null
     classId?: string[]
   }) => {
-    return await post("/subject/add", data)
+    return await post("/subject/create", data)
   },
 
   updateSubject: async (

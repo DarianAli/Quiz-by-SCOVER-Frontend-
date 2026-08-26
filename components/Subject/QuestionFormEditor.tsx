@@ -1,29 +1,28 @@
 "use client"
 
-// NEW component. Extracted so the exact same editing UI (QuestionEditorLive)
-// and choice-handling logic can be reused for both:
+// Reusable wrapper that hosts QuestionEditorLive + handles:
 //   - Add Question  (components/quiz/AddQuestion.tsx)
 //   - Edit Question  (components/quiz/quizEditor.tsx, inside QuizEditor)
-// Previously that handler logic (onAddChoice/onUpdateChoice/onSetCorrectChoice/
-// onRemoveChoice) only existed inside QuizAddQuestionContainer. It is moved
-// here unchanged, just made reusable.
 
 import { useState } from "react"
-import { ListChecks, ToggleLeft, Type, FileText, Shuffle, PencilLine } from "lucide-react"
+import { ListChecks, ToggleLeft, Type, FileText, Shuffle, PencilLine, CheckSquare, BookOpen } from "lucide-react"
 import type { QuestionTypeKey } from "@/lib/theme/question-type-themes"
 import type { AnswerChoice, QuestionFormValue } from "@/types/questions"
+import { newChoiceId } from "@/types/questions"
 import QuestionEditorLive from "../Subject/QuestionEditorLive"
 
 const TYPE_OPTIONS: { key: QuestionTypeKey; icon: React.ReactNode }[] = [
-  { key: "multiple_choice", icon: <ListChecks size={18} /> },
-  { key: "true_false", icon: <ToggleLeft size={18} /> },
-  { key: "short_answer", icon: <Type size={18} /> },
-  { key: "essay", icon: <FileText size={18} /> },
-  { key: "matching", icon: <Shuffle size={18} /> },
-  { key: "fill_blank", icon: <PencilLine size={18} /> },
+  { key: "multiple_choice",  icon: <ListChecks size={18} /> },
+  { key: "multiple_complex", icon: <CheckSquare size={18} /> },
+  { key: "true_false",       icon: <ToggleLeft size={18} /> },
+  { key: "short_answer",     icon: <Type size={18} /> },
+  { key: "essay",            icon: <FileText size={18} /> },
+  { key: "matching",         icon: <Shuffle size={18} /> },
+  { key: "fill_blank",       icon: <PencilLine size={18} /> },
+  { key: "story_group",      icon: <BookOpen size={18} /> },
 ]
 
-const emptyChoice = (): AnswerChoice => ({ id: Date.now() + Math.random(), text: "", isCorrect: false })
+const emptyChoice = (): AnswerChoice => ({ id: newChoiceId(), text: "", isCorrect: false })
 
 interface QuestionFormEditorProps {
   initialValue: QuestionFormValue

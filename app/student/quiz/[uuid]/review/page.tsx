@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { DifficultyBadge } from "@/components/student/shared/badge";
 import type { IReviewQuestion } from "@/app/types";
+import MathText from "@/components/shared/MathText";
 import { get } from "@/lib/api-bridge";
 import { getCookie } from "@/lib/client-cookie";
 import { BASE_API_URL } from "@/global";
@@ -249,9 +250,33 @@ export default function ReviewPage() {
                                     </div>
                                     {cardStyle.badge}
                                 </div>
-                                <p className="text-sm md:text-base font-semibold text-[#0d4669] leading-relaxed">
-                                    {currentQuestion.question_text}
-                                </p>
+                                <MathText
+                                    text={currentQuestion.question_text}
+                                    className="text-sm md:text-base font-semibold text-[#0d4669] leading-relaxed"
+                                />
+                                {/* Multiple images / attached image support (when not already embedded inline in question_text) */}
+                                {!currentQuestion.question_text?.includes("![") && (
+                                    currentQuestion.question_images && currentQuestion.question_images.length > 0 ? (
+                                        <div className="mt-4 flex flex-col gap-3">
+                                            {currentQuestion.question_images.map((img: any) => (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
+                                                    key={img.id}
+                                                    src={img.url.startsWith("http") || img.url.startsWith("data:") ? img.url : `${BASE_API_URL}${img.url.startsWith("/") ? "" : "/"}${img.url}`}
+                                                    alt="Gambar soal"
+                                                    className="rounded-xl max-h-48 object-contain border border-gray-100"
+                                                />
+                                            ))}
+                                        </div>
+                                    ) : currentQuestion.question_image ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={currentQuestion.question_image.startsWith("http") || currentQuestion.question_image.startsWith("data:") ? currentQuestion.question_image : `${BASE_API_URL}/public/question_image/${currentQuestion.question_image}`}
+                                            alt="Gambar soal"
+                                            className="mt-4 rounded-xl max-h-48 object-contain border border-gray-100"
+                                        />
+                                    ) : null
+                                )}
                             </div>
 
                             {/* Options */}
@@ -278,7 +303,9 @@ export default function ReviewPage() {
                                             ].join(" ")}>
                                                 {label}
                                             </div>
-                                            <span className="text-sm flex-1">{opt.option_text}</span>
+                                            <span className="text-sm flex-1">
+                                                <MathText text={opt.option_text} />
+                                            </span>
                                             <div className="shrink-0">
                                                 {isCorrect && <CheckCircle2 size={15} className="text-emerald-500" />}
                                                 {isSelected && !isCorrect && <XCircle size={15} className="text-red-500" />}

@@ -95,6 +95,8 @@ export const put = async (url: string, data: any, token?: string) => {
     } catch (error) {
         const err = error as AxiosError<any>
         const isNetworkError = !err.response;
+        
+        const status = err.response?.status ?? "Network Error"
 
         const message =
             err.response?.data?.message ??
@@ -161,12 +163,13 @@ export const drop = async (url: string, token?: string) => {
     } catch (error) {
         const err = error as AxiosError<any>
 
+        const status = err.response?.status ?? "Network Error"
         const message =
             err.response?.data?.message ??
             err.message ??
             "Something went wrong"
 
-        const isExpected = status !== "Unknown" && [400, 401, 403, 404, 422].includes(status as number)
+        const isExpected = status !== "Network Error" && [400, 401, 403, 404, 422].includes(status as number)
 
         if (isExpected) {
             console.warn(`[API WARN] ${url} → ${status}: ${message}`)
