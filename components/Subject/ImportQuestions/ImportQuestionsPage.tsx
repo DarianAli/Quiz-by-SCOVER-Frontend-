@@ -1,11 +1,12 @@
 "use client"
 
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Upload, FileText, Loader2, X, CheckSquare, Square, Trash2, ArrowLeft } from "lucide-react"
 import { toast } from "react-toastify"
 import QuestionReviewCard, { type ReviewQuestion, type ReviewOption } from "./QuestionReviewCard"
+import QuestionNavigation from "./QuestionNavigation"
 import { questionImportService, type ImportQuestion } from "@/services/questionImport.service"
-import { Difficulty } from "@/app/types"
+import { resolveLocalImagePaths } from "@/lib/content-parser"
 
 interface ImportQuestionPageProps {
     quizId: string
@@ -19,26 +20,35 @@ let localIdCounter = 0
 const nextLocalId = () => `q-${Date.now()}-${localIdCounter++}`
 
 function toReviewQuestion(q: ImportQuestion, sessionId: string): ReviewQuestion {
+    // Resolve any local filesystem image paths embedded in the question text
+    // (e.g. ![](/var/folders/.../image1.png)) into proper backend media URLs.
+    const resolveText = (text: string) =>
+        resolveLocalImagePaths(text, sessionId, questionImportService.mediaUrl)
+
     return {
         localId: nextLocalId(),
         number: q.number,
-        question_text: q.question_text,
+        question_text: resolveText(q.question_text),
         question_type: "MULTIPLE_CHOICE",
         difficulty: q.ai_suggested_difficulty ?? "EASY",
         poin: 10,
         discussion: "",
-        image: q.images[0]?.replace(/^media\//, "") ?? null,
-        imageUrl: q.images[0] ? questionImportService.mediaUrl(sessionId, q.images[0].replace(/^media\//, "")) : null,
+        // Legacy single image (untuk tampilan di editor)
+        image: q.images[0] ? (q.images[0].split("/").pop() ?? null) : null,
+        imageUrl: q.images[0] ? questionImportService.mediaUrl(sessionId, q.images[0].split("/").pop() ?? "") : null,
+        // Semua gambar (multi-image support)
+        images: q.images.map(img => img.split("/").pop() ?? img),
+        imageUrls: q.images.map(img => questionImportService.mediaUrl(sessionId, img.split("/").pop() ?? img)),
         options: q.options.map((o): ReviewOption => ({
             id: `opt-${nextLocalId()}`,
             letter: o.letter,
-            text: o.text,
+            text: resolveText(o.text),
             is_correct: o.letter === q.correct_letter
         })),
         warnings: q.warnings,
         aiSuggestedDifficulty: q.ai_suggested_difficulty ?? "EASY",
         aiSuggestedTopic: q.ai_suggested_topic,
-        aiEquationFlag: q.ai_suggested_flag,
+        aiEquationFlag: q.ai_equation_flag,
         selected: false
     }
 }
@@ -50,15 +60,27 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
     const [sourceFilename, setSourceFilename] = useState<string>("")
     const [questions, setQuestions] = useState<ReviewQuestion[]>([])
     const [parseProgress, setParseProgress] = useState<string>("")
+    const [currentIndex, setCurrentIndex] = useState(0)
+
+    useEffect(() => {
+        if (questions.length === 0) {
+            if (currentIndex !== 0) setCurrentIndex(0)
+            return
+        }
+        if (currentIndex > questions.length - 1) {
+            setCurrentIndex(questions.length - 1)
+        }
+    }, [questions.length, currentIndex])
 
     const handleFile = useCallback(async (file: File) => {
         setStage("parsing")
         setParseProgress(`Membaca ${file.name}...`)
         try {
             const result = await questionImportService.parseFile(file)
-            setSessionId(result.import_sessions_id)
+            setSessionId(result.import_session_id)
             setSourceFilename(result.source_filename)
-            setQuestions(result.questions.map((q) => toReviewQuestion(q, result.import_sessions_id)))
+            setQuestions(result.questions.map((q) => toReviewQuestion(q, result.import_session_id)))
+            setCurrentIndex(0)
             setStage("review")
             if (result.warnings_count > 0) {
                 toast.warning(`${result.warnings_count} dari ${result.total_questions} soal punya direview manual.`)
@@ -88,7 +110,18 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
     }
 
     const deleteQuestion = (localId: string) => {
-        setQuestions((prev) => prev.filter((q) => q.localId !== localId))
+        setQuestions((prev) => {
+            const idx = prev.findIndex((q) => q.localId === localId)
+            const next = prev.filter((q) => q.localId !== localId)
+            if (idx !== -1) {
+                setCurrentIndex((ci) => {
+                    if (next.length === 0) return 0
+                    if (idx < ci) return ci - 1
+                    return Math.min(ci, next.length - 1)
+                })
+            } 
+            return next
+        })
     }
 
     const duplicateQuestion = (localId: string) => {
@@ -98,10 +131,11 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
             const clone: ReviewQuestion = {
                 ...prev[idx],
                 localId: nextLocalId(),
-                options: prev[idx].options.map((o) => ({ ...o, id: `opt-${nextLocalId()}` }),)
+                options: prev[idx].options.map((o) => ({ ...o, id: `opt-${nextLocalId()}` })),
             }
             const next = [...prev]
             next.splice(idx + 1, 0, clone)
+            setCurrentIndex(idx + 1)
             return next
         })
     }
@@ -114,7 +148,11 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
     }
 
     const bulkDelete = () => {
-        setQuestions((prev) => prev.filter((q) => !q.selected))
+        setQuestions((prev) => {
+            const next = prev.filter((q) => !q.selected)
+            setCurrentIndex((ci) => (next.length === 0 ? 0 : Math.min(ci, next.length - 1)))
+            return next
+        })
     }
 
     const bulkSetDifficulty = (difficulty: ReviewQuestion["difficulty"]) => {
@@ -127,9 +165,11 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
             toast.error("Tidak ada soal untuk disimpan.")
             return
         }
-        const invalid = questions.find((q) => q.question_type === "MULTIPLE_CHOICE" && !q.options.some((o) => o.is_correct))
-        if (invalid) {
-            toast.error(`Soal #${invalid.number} belum punya jawaban benar yang ditandai.`)
+
+        const invalidIdx = questions.findIndex((q) => q.question_type === "MULTIPLE_CHOICE" && !q.options.some((o) => o.is_correct))
+        if (invalidIdx !== -1) {
+            toast.error(`Soal #${questions[invalidIdx].number} belum punya jawaban benar yang ditandai.`)
+            setCurrentIndex(invalidIdx)
             return
         }
 
@@ -141,7 +181,8 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
                 difficulty: q.difficulty,
                 poin: q.poin,
                 discussion: q.discussion || null,
-                image: q.image,
+                // Kirim semua gambar via `images[]` — backend akan simpan ke question_images tabel
+                images: q.images ?? (q.image ? [q.image] : []),
                 options: q.options.map((o) => ({ text: o.text, is_correct: o.is_correct })),
             }))
             const result = await questionImportService.commit(sessionId, quizId, payload)
@@ -160,6 +201,8 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
         }
         onClose()
     }
+
+    const currentQuestion = questions[currentIndex]
 
     return (
         <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto">
@@ -217,11 +260,13 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
                         <div className="flex items-center justify-between bg-white rounded-2xl ring-1 ring-slate-100 px-4 py-3">
                             <div className="flex items-center gap-3">
                                 <FileText size={16} className="text-slate-400" />
-                                <span className="text-xs text-slate-400">{questions.length} questions</span>
+                                <span className="text-xs text-slate-400">
+                                    {sourceFilename || "Imported file"} - {questions.length} questions
+                                </span>
                             </div>
 
                             {/* Bulk action bar */}
-                            <div className="flex items-center gap-3 bg-white rounded-2x; ring-1 ring-slate-100 px-4 py-3 flex-wrap">
+                            <div className="flex items-center gap-3 flex-wrap">
                                 <button
                                     onClick={toggleSelectAll}
                                     className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:slate-900"
@@ -252,22 +297,56 @@ export default function ImportQuestionPage({ quizId, onClose, onImportComplete }
                                     </>
                                 )}
                             </div>
-
-                            {questions.map((q, idx) => (
-                                <QuestionReviewCard
-                                    key={q.localId}
-                                    question={q}
-                                    index={idx}
-                                    onChange={(updated) => updateQuestion(q.localId, updated)}
-                                    onDelete={() => duplicateQuestion(q.localId)}
-                                    onDuplicate={() => duplicateQuestion(q.localId)}
-                                />
-                            ))}
-
-                            {questions.length === 0 && (
-                                <div className="text-center py-16 text-slate-400 text-sm">Semua soal sudah dihapus dari daftar import.</div>
-                            )}
                         </div>
+
+                        { questions.length === 0 ? (
+                            <div className="text-center py-16 text-slate-400 text-sm bg-white rounded-2xl ring-1 ring-slate-100">
+                                Semua soal sudah dihapus dari daftar import.    
+                            </div>
+                        ) : (
+                            <>
+                                {/* Pagination - a lightweight nav bar, never a full list of a editors */}
+                                <QuestionNavigation 
+                                    question={questions}
+                                    currentIndex={currentIndex}
+                                    onSelect={setCurrentIndex}
+                                />
+
+                                {/* Only the ACTIVE question is ever mounted here */}
+                                {currentQuestion && (
+                                    <QuestionReviewCard 
+                                        key={currentQuestion.localId}
+                                        question={currentQuestion}
+                                        index={currentIndex}
+                                        total={questions.length}
+                                        onChange={(updated) => updateQuestion(currentQuestion.localId, updated)}
+                                        onDelete={() => deleteQuestion(currentQuestion.localId)}
+                                        onDuplicate={() => duplicateQuestion(currentQuestion.localId)}
+                                    />
+                                )}  
+
+                                {/* Footer prev/next, mirrors the top pagination for long questions */}
+                                <div className="flex items-center justify-between bg-white rounded-2xl ring-1 ring-slate-100 px-4 py-3">
+                                    <button
+                                        onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                                        disabled={currentIndex === 0}
+                                        className="h-9 px-4 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        ← Previous
+                                    </button>
+                                    <span className="text-xs text-slate-400">
+                                        Question {currentIndex + 1} of {questions.length}
+                                    </span>
+                                    <button
+                                        onClick={() => setCurrentIndex((i) => Math.min(questions.length - 1, i + 1))}
+                                        disabled={currentIndex === questions.length - 1}
+                                        className="h-9 px-4 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:bg-transparent"
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            </>
+                        ) }
                     </div>
                 )}
             </div>

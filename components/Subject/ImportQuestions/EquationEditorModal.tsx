@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from "react";
 import { X, Undo2, Redo2 } from "lucide-react";
-import MathText from "./MathText";
+import MathText from "@/components/shared/MathText";
 import { group } from "console";
 
 interface ToolbarGroup {

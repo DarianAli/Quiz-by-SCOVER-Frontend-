@@ -12,15 +12,19 @@ import {
   Circle,
   Trash2,
   ChevronRight,
+  FileUp,
 } from "lucide-react"
 import { getSubjectTheme } from "@/lib/theme/subject-themes"
 import { getQuestionTypeTheme, normalizeQuestionType, type QuestionTypeKey } from "@/lib/theme/question-type-themes"
 import { questionItemToFormValue, formValueToQuestionItem, type QuestionFormValue } from "@/types/questions"
 import QuestionFormEditor from "../Subject/QuestionFormEditor"
 import { toast } from "react-toastify"
-import { post, put } from "@/lib/api-bridge"
+import { post, put, get, drop } from "@/lib/api-bridge"
 import { getCookie } from "@/lib/client-cookie"
 import { BASE_API_URL } from "@/global"
+import ImportQuestionPage from "../Subject/ImportQuestions/ImportQuestionsPage"
+import MathText from "@/components/shared/MathText"
+
 
 interface QuizEditorProps {
   quiz: any
@@ -46,6 +50,7 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
   const [activeIndex, setActiveIndex] = useState(0)
   const [saveState, setSaveState] = useState<SaveState>("idle")
   const [view, setView] = useState<ViewMode>("list")
+  const [showImportPanel, setShowImportPanel] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const theme = getSubjectTheme(getSubjectThemeKeyFallback(quiz.subjectId))
@@ -91,7 +96,25 @@ export default function QuizEditor({ quiz: initialQuiz, onSave, onBack }: QuizEd
     setActiveIndex(quiz.questions ? quiz.questions.length : 0)
   }
 
-  const deleteQuestion = (index: number) => {
+  const refetchQuiz = async () => {
+    const token = getCookie("token") as string
+    const response = await get(`${BASE_API_URL}/quiz/${quiz.uuid}`, token)
+    if (response.data?.success) setQuiz(response.data.data)
+  }
+
+  const deleteQuestion = async (index: number) => {
+    const question = quiz.questions?.[index]
+    // Only call backend if the question is already persisted (has a real id/uuid)
+    if (question && (question.uuid || question.id) && !String(question.id).startsWith("tmp-")) {
+      try {
+        const token = getCookie("token") as string
+        const idToDelete = question.uuid || question.id
+        await drop(`${BASE_API_URL}/question/delete/${idToDelete}`, token)
+      } catch (err: any) {
+        toast.error(err?.response?.data?.message || "Gagal menghapus soal dari database")
+        return // Abort — don't remove from UI if DB delete failed
+      }
+    }
     setQuiz((prev: any) => ({ ...prev, questions: prev.questions.filter((_: any, i: number) => i !== index) }))
     setActiveIndex((prev: number) => Math.max(0, prev - 1))
   }
@@ -127,7 +150,9 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
         poin: value.points || 10,
         quizId: quiz.uuid,
         discussion: value.explanation,
-        question_type: value.type, // ✅ Kirim tipe soal ke backend
+        question_type: value.type,
+        allow_multiple_answers: value.allowMultipleAnswers ?? false,
+        is_strict: value.isStrict ?? false,
       }
       const resQ = await post(`${BASE_API_URL}/question/add`, qPayload, token)
       if (!resQ.data?.success) {
@@ -158,6 +183,42 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
           return
         }
       }
+
+      // ── Story Group: save each child question ─────────────────────────────
+      if (value.type === "story_group" && value.storyChildren && value.storyChildren.length > 0) {
+        for (let ci = 0; ci < value.storyChildren.length; ci++) {
+          const child = value.storyChildren[ci]
+          const childPayload = {
+            question_text: child.prompt,
+            difficulty: child.difficulty,
+            poin: child.points || 10,
+            quizId: quiz.uuid,
+            discussion: child.explanation || "",
+            question_type: child.type,
+            allow_multiple_answers: child.allowMultipleAnswers ?? false,
+            is_strict: child.isStrict ?? false,
+            parentId: questionId,
+          }
+          const resChild = await post(`${BASE_API_URL}/question/add`, childPayload, token)
+          if (!resChild.data?.success) {
+            toast.error(`Failed to save child question ${ci + 1}`)
+            continue
+          }
+          const childId = resChild.data.data.id
+          // Save child options
+          if (child.choices && child.choices.length > 0) {
+            await Promise.all(child.choices.map((opt, idx) =>
+              post(`${BASE_API_URL}/option/add`, {
+                option_text: opt.text,
+                is_correct: String(opt.isCorrect),
+                order_index: idx,
+                questionId: childId
+              }, token)
+            ))
+          }
+        }
+      }
+
       toast.success("Question created")
     } else {
       // ✅ Edit: persist ke backend via PUT (bukan hanya update lokal)
@@ -166,7 +227,9 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
         difficulty: quiz.difficulty,
         poin: value.points || 10,
         discussion: value.explanation,
-        question_type: value.type, // ✅ Pastikan tipe soal tersimpan saat edit
+        question_type: value.type,
+        allow_multiple_answers: value.allowMultipleAnswers ?? false,
+        is_strict: value.isStrict ?? false,
       }
       const questionIdOrUuid = activeQuestion.uuid || activeQuestion.id
       const resUpdate = await put(`${BASE_API_URL}/question/update/${questionIdOrUuid}`, updatePayload, token)
@@ -204,12 +267,32 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
         type: resolvedType,
         difficulty: activeQuestion.difficulty || "EASY",
         tag: "",
+        allowMultipleAnswers: activeQuestion.allow_multiple_answers ?? false,
+        isStrict: activeQuestion.is_strict ?? false,
         choices: activeQuestion.options?.map((o: any) => ({
             id: o.uuid || o.idOption || o.id,
             text: o.option_text,
             isCorrect: typeof o.is_correct === "string" ? o.is_correct === "true" : Boolean(o.is_correct),
             isEditing: false
-        })) || []
+        })) || [],
+        // Story Group children — populated from the persisted children array
+        storyChildren: resolvedType === "story_group"
+            ? (activeQuestion.children ?? []).map((c: any) => ({
+                type: normalizeQuestionType(c.question_type),
+                prompt: c.question_text || "",
+                points: c.poin || 10,
+                explanation: c.discussion || "",
+                difficulty: c.difficulty || "EASY",
+                tag: "",
+                allowMultipleAnswers: c.allow_multiple_answers ?? false,
+                isStrict: c.is_strict ?? false,
+                choices: c.options?.map((o: any) => ({
+                    id: o.uuid || o.id,
+                    text: o.option_text,
+                    isCorrect: typeof o.is_correct === "string" ? o.is_correct === "true" : Boolean(o.is_correct),
+                })) || [],
+              }))
+            : undefined,
     }
 
     return (
@@ -359,6 +442,14 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
                   <Plus size={15} />
                   Add question
                 </button>
+                <button 
+                  onClick={() => setShowImportPanel(true)}
+                  type="button"
+                  className="h-9 px-3.5 rounded-xl text-sm font-medium text-slate-600 border border-slate-200 bg-white hover:border-slate-300 flex items-center gap-1.5 transition-all duration-150 hover:-translate-y-px hover:shadow-md"
+                >
+                  <FileUp size={15} />
+                  Import from Word
+                </button>
               </div>
 
               {quiz.questions && quiz.questions.length > 0 ? (
@@ -436,6 +527,14 @@ const handleSaveQuestionForm = async (value: QuestionFormValue) => {
           </div>
         </div>
       </div>
+
+      {showImportPanel && (
+        <ImportQuestionPage 
+          quizId={quiz.uuid}
+          onClose={() => setShowImportPanel(false)}
+          onImportComplete={refetchQuiz}
+        />
+      )}
     </div>
   )
 }
@@ -478,11 +577,26 @@ function QuestionListCard({
               {typeTheme.label}
             </span>
             <span className="text-xs text-slate-400">{question.poin || 0} pts</span>
+            {question.question_type?.toUpperCase() === "STORY_GROUP" && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700">
+                {question.children?.length ?? 0} sub-questions
+              </span>
+            )}
+            {question.allow_multiple_answers && question.question_type?.toUpperCase() !== "STORY_GROUP" && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700">
+                multi-answer
+              </span>
+            )}
           </div>
-          <p className="text-sm text-slate-900 truncate">
-            {question.question_text || <span className="text-slate-300 italic">Empty question</span>}
-          </p>
+          <div className="text-sm text-slate-900 truncate line-clamp-1">
+            {question.question_text ? (
+              <MathText text={question.question_text} className="inline" />
+            ) : (
+              <span className="text-slate-300 italic">Empty question</span>
+            )}
+          </div>
         </div>
+
         <ChevronRight size={16} className="text-slate-300 flex-shrink-0 group-hover:text-slate-400 transition-colors" />
       </button>
 

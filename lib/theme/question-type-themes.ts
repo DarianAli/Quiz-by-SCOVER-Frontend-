@@ -1,10 +1,12 @@
 export type QuestionTypeKey =
   | "multiple_choice"
+  | "multiple_complex"
   | "true_false"
   | "short_answer"
   | "essay"
   | "matching"
-  | "fill_blank";
+  | "fill_blank"
+  | "story_group";
 
 export interface QuestionTypeTheme {
   label: string;
@@ -27,6 +29,16 @@ export const QUESTION_TYPE_THEME: Record<QuestionTypeKey, QuestionTypeTheme> = {
     selectedBorder: "border-blue-400",
     selectedRing: "ring-2 ring-blue-400/50",
     previewAccent: "border-l-4 border-blue-400",
+  },
+  multiple_complex: {
+    label: "Multiple answers",
+    description: "Select all correct answers (checkboxes).",
+    text: "text-indigo-700",
+    iconBg: "bg-gradient-to-br from-indigo-500 to-violet-600",
+    badge: "bg-indigo-50 text-indigo-700",
+    selectedBorder: "border-indigo-400",
+    selectedRing: "ring-2 ring-indigo-400/50",
+    previewAccent: "border-l-4 border-indigo-400",
   },
   true_false: {
     label: "True / False",
@@ -78,13 +90,24 @@ export const QUESTION_TYPE_THEME: Record<QuestionTypeKey, QuestionTypeTheme> = {
     selectedRing: "ring-2 ring-teal-400/50",
     previewAccent: "border-l-4 border-teal-400",
   },
+  story_group: {
+    label: "Story / Passage",
+    description: "Shared story or passage with multiple child questions.",
+    text: "text-amber-700",
+    iconBg: "bg-gradient-to-br from-amber-500 to-orange-500",
+    badge: "bg-amber-50 text-amber-700",
+    selectedBorder: "border-amber-400",
+    selectedRing: "ring-2 ring-amber-400/50",
+    previewAccent: "border-l-4 border-amber-400",
+  },
 };
 
 export function normalizeQuestionType(raw: string | undefined | null): QuestionTypeKey {
   if (!raw) return "multiple_choice";
   const lower = raw.toLowerCase().replace(/ /g, "_") as QuestionTypeKey;
   const valid: QuestionTypeKey[] = [
-    "multiple_choice", "true_false", "short_answer", "essay", "matching", "fill_blank"
+    "multiple_choice", "multiple_complex", "true_false", "short_answer",
+    "essay", "matching", "fill_blank", "story_group"
   ];
   return valid.includes(lower) ? lower : "multiple_choice";
 }
