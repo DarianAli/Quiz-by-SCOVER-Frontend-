@@ -6,21 +6,90 @@
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: #0d4669;
+  --color-secondary: #fad136;
+  --color-gray: #808080;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Keep autofill text readable */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #111111 !important;
+  caret-color: #111111;
+  transition: background-color 5000s ease-in-out 0s;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-poppins), "Inter", Arial, Helvetica, sans-serif;
+}
+
+
+
+@media (max-width: 1200px) {
+  .quizAvailableGrid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+}
+
+@media (max-width: 768px) {
+  .quizAvailableGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  .quizAvailableContainer {
+    padding: 24px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .quizAvailableGrid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@theme {
+  /* --- CUSTOM COLORS --- */
+  --color-royal-50: #EAF3FF;
+  --color-royal-400: #3B7DDE;
+  --color-royal-500: #1D61D2;
+  --color-royal-600: #174EA6;
+  --color-royal-700: #112B66;
+
+  --color-gold-50: #FFF8E1;
+  --color-gold-300: #FFD95A;
+  --color-gold-400: #F4C430;
+  --color-gold-500: #E9B21F;
+
+  /* --- CUSTOM KEYFRAMES --- */
+  @keyframes fade-slide-up {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+  
+  @keyframes gradient-fade {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  /* --- CUSTOM ANIMATIONS --- */
+  --animate-fade-slide-up: fade-slide-up 320ms ease-out both;
+  --animate-pulse-soft: pulse-soft 1.8s ease-in-out infinite;
+  --animate-gradient-fade: gradient-fade 250ms ease-out both;
 }

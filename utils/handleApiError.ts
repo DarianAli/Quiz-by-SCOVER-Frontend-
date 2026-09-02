@@ -1,8 +1,11 @@
 import axios, { AxiosError } from "axios";
 
+export type ApiResponse<T> =
+  | { status: true; data: T; message: string }
+  | { status: false; message: string }
+
 interface ServerErrorPayload {
   message: string;
-  code: number;
 }
 
 export interface ApiErrorResult {
@@ -13,14 +16,12 @@ export interface ApiErrorResult {
 export function handleApiError(
   error: unknown,
   customContext?: string
-): ApiErrorResult {
+): { status: false; message: string } {
   const ctx = customContext ?? "request";
 
   if (axios.isAxiosError<ServerErrorPayload>(error)) {
-
     if (error.response) {
-      const msg = error.response.data?.message
-        ?? `Server error (${error.response.status})`;
+      const msg = error.response.data?.message ?? `Server error (${error.response.status})`;
       console.error(`[API] ${ctx}:`, msg);
       return { status: false, message: msg };
     }

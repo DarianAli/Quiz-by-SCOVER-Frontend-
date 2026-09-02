@@ -48,7 +48,7 @@ const Modal = ({ isShow, onClose, title, children, footer, size = "sm" }: Props)
             className="w-full h-dvh z-1024 bg-black/30 backdrop-blur-sm fixed top-0 left-0 flex justify-center items-center"
             onClick={e => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className={`${sizeClass[size]} bg-white rounded-2xl border border-black/[0.06] flex flex-col`}>
+            <div className={`${sizeClass[size]} bg-white rounded-2xl border border-black/6 flex flex-col`}>
 
                 {/* Header */}
                 {title && (

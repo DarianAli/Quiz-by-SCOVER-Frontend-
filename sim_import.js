@@ -1,0 +1,11 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var base = "image1.png";
+var baseSafe = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+var urlRegex = new RegExp("!\\[([^\\]]*)\\]\\([^)]*?".concat(baseSafe, "\\)(\\{[^}]*\\})?"), "g");
+var pandocOut = "![](/tmp/m2/media/image1.png){width=\"1in\"\nheight=\"1in\"}";
+var replacement = "![$1](/question_image/1234.png)$2";
+var res = pandocOut.replace(urlRegex, replacement);
+console.log("Replaced:", res);
+var content_parser_1 = require("./lib/content-parser");
+console.log("Parsed AST:", JSON.stringify((0, content_parser_1.parseContent)(res), null, 2));
