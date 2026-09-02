@@ -46,13 +46,29 @@ function StatusBadge({ status }: { status: string }) {
     return <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${cls}`}>{label}</span>;
 }
 
+// ─── Question Type Label ──────────────────────────────────────────────────────
+function getTypeLabel(type: string): string {
+    const map: Record<string, string> = {
+        MULTIPLE_CHOICE:  "Pilihan Ganda",
+        MULTIPLE_COMPLEX: "Pilihan Ganda Kompleks",
+        TRUE_FALSE:       "Benar / Salah",
+        FILL_BLANK:       "Isian Singkat",
+        SHORT_ANSWER:     "Jawaban Singkat",
+        ESSAY:            "Essay",
+        MATCHING:         "Menjodohkan",
+        STORY_GROUP:      "Cerita / Bacaan",
+    };
+    return map[type] ?? type;
+}
+
 // ─── MC / TF Answer Card ──────────────────────────────────────────────────────
 function MultipleChoiceCard({ answer }: { answer: AnswerReview }) {
+    const typeLabel = getTypeLabel(answer.question.type);
     return (
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="p-5 border-b border-gray-100 flex items-start gap-3">
                 <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#EAF3FF] text-[#1D61D2] shrink-0">
-                    {answer.question.type === "MULTIPLE_CHOICE" ? "Pilihan Ganda" : "Benar/Salah"}
+                    {typeLabel}
                 </span>
                 <p className="text-sm font-semibold text-gray-800 leading-relaxed flex-1">{answer.question.text}</p>
                 <span className="text-xs text-gray-400 shrink-0">{answer.question.points} pts</span>
@@ -79,6 +95,107 @@ function MultipleChoiceCard({ answer }: { answer: AnswerReview }) {
                         </div>
                     );
                 })}
+            </div>
+        </div>
+    );
+}
+
+// ─── Multiple Complex Answer Card ─────────────────────────────────────────────
+function MultipleComplexCard({ answer }: { answer: AnswerReview }) {
+    // student_answer.text stores comma-separated integer option IDs
+    const selectedIds = new Set(
+        (answer.student_answer.text ?? "")
+            .split(",")
+            .map(s => parseInt(s.trim(), 10))
+            .filter(n => !isNaN(n))
+    );
+    return (
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex items-start gap-3">
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#EAF3FF] text-[#1D61D2] shrink-0">
+                    {getTypeLabel(answer.question.type)}
+                </span>
+                <p className="text-sm font-semibold text-gray-800 leading-relaxed flex-1">{answer.question.text}</p>
+                <span className="text-xs text-gray-400 shrink-0">{answer.question.points} pts</span>
+            </div>
+            <div className="p-5 space-y-2">
+                {!answer.student_answer.text && (
+                    <p className="text-sm text-gray-400 italic">Tidak ada jawaban</p>
+                )}
+                {answer.question.options.map(opt => {
+                    const isStudentSelected = selectedIds.has(opt.id);
+                    const isCorrect = opt.is_correct;
+                    let cls = "border-gray-100 bg-gray-50/50 text-gray-600";
+                    if (isStudentSelected && isCorrect) cls = "border-emerald-200 bg-emerald-50 text-emerald-700";
+                    else if (isStudentSelected && !isCorrect) cls = "border-red-200 bg-red-50 text-red-700";
+                    else if (!isStudentSelected && isCorrect) cls = "border-emerald-200 bg-emerald-50/50 text-emerald-600";
+
+                    return (
+                        <div key={opt.id} className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-medium ${cls}`}>
+                            <div className="shrink-0 w-4 h-4 rounded border-2 flex items-center justify-center"
+                                style={{ borderColor: isStudentSelected ? (isCorrect ? "#10b981" : "#ef4444") : "#d1d5db" }}>
+                                {isStudentSelected && <span className="block w-2 h-2 rounded-sm"
+                                    style={{ background: isCorrect ? "#10b981" : "#ef4444" }} />}
+                            </div>
+                            <span className="flex-1">{opt.text}</span>
+                            <div className="ml-auto flex items-center gap-1.5 text-xs">
+                                {isStudentSelected && <span className="opacity-70">Siswa memilih</span>}
+                                {isCorrect && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+// ─── Fill Blank Answer Card ────────────────────────────────────────────────────
+function FillBlankCard({ answer }: { answer: AnswerReview }) {
+    const studentText = answer.student_answer.text;
+    const correctOptions = answer.question.options.filter(o => o.is_correct);
+    // Re-evaluate correctness client-side for display (is_correct on answer is null for text types)
+    const isCorrect = !!studentText && correctOptions.some(opt =>
+        studentText.trim().toLowerCase() === opt.text.trim().toLowerCase()
+    );
+
+    return (
+        <div className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${isCorrect ? "border-emerald-200" : studentText ? "border-red-200" : "border-gray-200"}`}>
+            <div className="p-5 border-b border-gray-100 flex items-start gap-3">
+                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#EAF3FF] text-[#1D61D2] shrink-0">
+                    {getTypeLabel(answer.question.type)}
+                </span>
+                <p className="text-sm font-semibold text-gray-800 leading-relaxed flex-1">{answer.question.text}</p>
+                <span className="text-xs text-gray-400 shrink-0">{answer.question.points} pts</span>
+            </div>
+            <div className="p-5 space-y-3">
+                {/* Student's typed answer */}
+                <div>
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Jawaban Siswa</p>
+                    {studentText ? (
+                        <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-sm font-medium ${isCorrect ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>
+                            {isCorrect
+                                ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                                : <XCircle className="w-4 h-4 text-red-500 shrink-0" />}
+                            <span>{studentText}</span>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-400 italic">Tidak ada jawaban</p>
+                    )}
+                </div>
+                {/* Accepted answers */}
+                {correctOptions.length > 0 && (
+                    <div>
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5">Jawaban yang Diterima</p>
+                        <div className="flex flex-wrap gap-1.5">
+                            {correctOptions.map((opt, i) => (
+                                <span key={i} className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-medium">
+                                    {opt.text}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -362,17 +479,25 @@ export default function TentorSubmissionDetailPage() {
                     Semua Jawaban ({detail.answers.length})
                 </h2>
                 {detail.answers.map((ans) => {
-                    const isEssay = ans.question.type === "ESSAY" || ans.question.type === "SHORT_ANSWER";
-                    return isEssay ? (
-                        <EssayCard
-                            key={ans.id}
-                            answer={ans}
-                            essayGrades={essayGrades}
-                            onChange={handleGradeChange}
-                        />
-                    ) : (
-                        <MultipleChoiceCard key={ans.id} answer={ans} />
-                    );
+                    const qType = ans.question.type;
+                    if (qType === "ESSAY" || qType === "SHORT_ANSWER") {
+                        return (
+                            <EssayCard
+                                key={ans.id}
+                                answer={ans}
+                                essayGrades={essayGrades}
+                                onChange={handleGradeChange}
+                            />
+                        );
+                    }
+                    if (qType === "FILL_BLANK") {
+                        return <FillBlankCard key={ans.id} answer={ans} />;
+                    }
+                    if (qType === "MULTIPLE_COMPLEX") {
+                        return <MultipleComplexCard key={ans.id} answer={ans} />;
+                    }
+                    // MULTIPLE_CHOICE, TRUE_FALSE (and any other option-based types)
+                    return <MultipleChoiceCard key={ans.id} answer={ans} />;
                 })}
             </div>
 
