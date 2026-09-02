@@ -192,5 +192,8 @@ export function formValueToQuestionItem(value: QuestionFormValue, existingId?: n
       })
     ),
     pairs: value.type === "matching" ? value.pairs : undefined,
+    children: value.type === "story_group" && value.storyChildren
+      ? value.storyChildren.map(c => formValueToQuestionItem(c))
+      : undefined,
   }
 }
