@@ -64,25 +64,27 @@ export function newChoiceId() {
   return nextChoiceId++
 }
 
-/** Dummy default choices tiap kali user ganti tipe soal */
+/** Dummy default choices tiap kali user ganti tipe soal.
+ * Uses newChoiceId() so every choice gets a globally unique ID,
+ * preventing React key collisions when the user switches question types. */
 export function getDefaultChoicesForType(type: QuestionTypeKey): AnswerChoice[] {
   switch (type) {
     case "true_false":
       return [
-        { id: 1, text: "True", isCorrect: true },
-        { id: 2, text: "False", isCorrect: false },
+        { id: newChoiceId(), text: "True",  isCorrect: true  },
+        { id: newChoiceId(), text: "False", isCorrect: false },
       ]
     case "multiple_choice":
     case "multiple_complex":
       return [
-        { id: 1, text: "", isCorrect: true },
-        { id: 2, text: "", isCorrect: false },
-        { id: 3, text: "", isCorrect: false },
-        { id: 4, text: "", isCorrect: false },
+        { id: newChoiceId(), text: "", isCorrect: true  },
+        { id: newChoiceId(), text: "", isCorrect: false },
+        { id: newChoiceId(), text: "", isCorrect: false },
+        { id: newChoiceId(), text: "", isCorrect: false },
       ]
     case "short_answer":
     case "fill_blank":
-      return [{ id: 1, text: "", isCorrect: true }]
+      return [{ id: newChoiceId(), text: "", isCorrect: true }]
     case "essay":
     case "matching":
     case "story_group":
