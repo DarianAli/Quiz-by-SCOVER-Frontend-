@@ -378,66 +378,6 @@ export default function ProgressPage() {
                 </motion.div>
             </div>
 
-            {/* ── 4. Weak & Strong Topics (Module-based) ───────────────── */}
-            {(strong_topics.length > 0 || weak_topics.length > 0) && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-
-                    {/* Strong Topics */}
-                    <motion.div
-                        initial={{ opacity: 0, x: -12 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.15 }}
-                        className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden"
-                    >
-                        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
-                            <Zap size={16} className="text-emerald-500" />
-                            <h3 className="text-base font-bold text-[#083E63]">Topik Terkuat</h3>
-                        </div>
-                        <div className="divide-y divide-gray-50">
-                            {strong_topics.map((topic, i) => (
-                                <div key={topic.topic} className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50/60 transition-colors">
-                                    <span className="text-xs font-black text-emerald-500 w-5">#{i + 1}</span>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-800 truncate">{topic.topic}</p>
-                                        <p className="text-xs text-gray-400">{topic.subject} · {topic.attempts}x dikerjakan</p>
-                                    </div>
-                                    <div className="shrink-0">
-                                        <span className="text-xs font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">{topic.accuracy}%</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </motion.div>
-
-                    {/* Weak Topics */}
-                    <motion.div
-                        initial={{ opacity: 0, x: 12 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="bg-white rounded-2xl border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden"
-                    >
-                        <div className="px-5 py-4 border-b border-gray-50 flex items-center gap-2">
-                            <TrendingDown size={16} className="text-red-400" />
-                            <h3 className="text-base font-bold text-[#083E63]">Perlu Ditingkatkan</h3>
-                        </div>
-                        <div className="divide-y divide-gray-50">
-                            {weak_topics.map((topic, i) => (
-                                <div key={topic.topic} className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50/60 transition-colors">
-                                    <span className="text-xs font-black text-red-400 w-5">#{i + 1}</span>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-semibold text-gray-800 truncate">{topic.topic}</p>
-                                        <p className="text-xs text-gray-400">{topic.subject} · {topic.attempts}x dikerjakan</p>
-                                    </div>
-                                    <div className="shrink-0">
-                                        <span className="text-xs font-black text-red-500 bg-red-50 px-2 py-0.5 rounded-lg">{topic.accuracy}%</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </motion.div>
-                </div>
-            )}
-
         </div>
     );
 }
