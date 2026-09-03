@@ -264,7 +264,7 @@ export default function QuestionEditorLive({
                   </label>
                   <div className="space-y-1.5">
                     {child.choices.map((c, ci) => (
-                      <div key={c.id} className="flex items-center gap-2">
+                      <div key={c.id ?? ci} className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => {

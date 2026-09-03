@@ -39,15 +39,19 @@ function StatBlock({
 
 // ─── Question Breakdown Item ──────────────────────────────────────────────────
 function BreakdownItem({
-    index, question_text, is_correct, is_skipped, answer_text
+    index, question_text, is_correct, is_skipped, answer_text, is_manual_review
 }: {
-    index: number; question_text: string; is_correct: boolean; is_skipped: boolean; answer_text?: string | null;
+    index: number; question_text: string; is_correct: boolean; is_skipped: boolean;
+    answer_text?: string | null; is_manual_review?: boolean;
 }) {
-    const isEssay = !!answer_text;
+    // is_manual_review is set by the backend only for ESSAY / SHORT_ANSWER answers.
+    // FILL_BLANK and MULTIPLE_COMPLEX have answer_text but are auto-graded, so
+    // they must NOT show the amber "Menunggu Penilaian" badge.
+    const needsManualReview = !!is_manual_review;
 
     const statusColor = is_skipped
         ? "border-gray-200 bg-gray-50"
-        : isEssay
+        : needsManualReview
         ? "border-amber-200 bg-amber-50"
         : is_correct
         ? "border-emerald-100 bg-emerald-50/40"
@@ -55,7 +59,7 @@ function BreakdownItem({
 
     const icon = is_skipped
         ? <SkipForward size={14} className="text-gray-400 shrink-0" />
-        : isEssay
+        : needsManualReview
         ? <Clock size={14} className="text-amber-500 shrink-0" />
         : is_correct
         ? <CheckCircle2 size={14} className="text-emerald-500 shrink-0" />
@@ -67,9 +71,9 @@ function BreakdownItem({
                 <span className="text-xs font-black text-gray-400 w-4 shrink-0">{index}</span>
                 {icon}
                 <p className="text-xs text-gray-700 line-clamp-1 flex-1">{question_text}</p>
-                {isEssay && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">Menunggu Penilaian</span>}
+                {needsManualReview && <span className="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">Menunggu Penilaian</span>}
             </div>
-            {isEssay && (
+            {needsManualReview && (
                 <div className="mt-2 ml-10 text-[11px] text-gray-600 border-l-2 border-amber-300 pl-3 italic">
                     "{answer_text}"
                 </div>
@@ -82,9 +86,11 @@ function BreakdownItem({
 interface QuestionBreakdown {
     question_index: number;
     question_text: string;
+    question_type?: string;
     is_correct: boolean;
     is_skipped: boolean;
     answer_text?: string | null;
+    is_manual_review?: boolean;
 }
 
 interface ResultData {
@@ -307,6 +313,7 @@ export default function ResultPage() {
                             is_correct={q.is_correct}
                             is_skipped={q.is_skipped}
                             answer_text={q.answer_text}
+                            is_manual_review={q.is_manual_review}
                         />
                     ))}
                 </div>

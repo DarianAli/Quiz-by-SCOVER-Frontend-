@@ -67,7 +67,8 @@ export default function QuizAddQuestionContainer({ idQuiz }: QuizAddQuestionCont
         difficulty: quiz.difficulty, // Inherit from quiz
         poin: value.points || 10,
         quizId: quiz.uuid, // numeric ID required by backend
-        discussion: value.explanation
+        discussion: value.explanation,
+        question_type: value.type,
       }
       
       const resQ = await post(`${BASE_API_URL}/question/add`, qPayload, token)
@@ -91,6 +92,40 @@ export default function QuizAddQuestionContainer({ idQuiz }: QuizAddQuestionCont
         })
 
         await Promise.all(optionPromises)
+      }
+
+      // 3. Create Story Children
+      if (value.type === "story_group" && value.storyChildren && value.storyChildren.length > 0) {
+        for (let ci = 0; ci < value.storyChildren.length; ci++) {
+          const child = value.storyChildren[ci]
+          const childPayload = {
+            question_text: child.prompt,
+            difficulty: child.difficulty,
+            poin: child.points || 10,
+            quizId: quiz.uuid,
+            discussion: child.explanation || "",
+            question_type: child.type,
+            allow_multiple_answers: child.allowMultipleAnswers ?? false,
+            is_strict: child.isStrict ?? false,
+            parentId: newQuestionId,
+          }
+          const resChild = await post(`${BASE_API_URL}/question/add`, childPayload, token)
+          if (!resChild.data?.success) {
+            toast.error(`Failed to save child question ${ci + 1}`)
+            continue
+          }
+          const childId = resChild.data.data.id
+          if (child.choices && child.choices.length > 0) {
+            await Promise.all(child.choices.map((opt, idx) =>
+              post(`${BASE_API_URL}/option/add`, {
+                option_text: opt.text,
+                is_correct: String(opt.isCorrect),
+                order_index: idx,
+                questionId: childId
+              }, token)
+            ))
+          }
+        }
       }
 
       toast.success("Pertanyaan berhasil ditambahkan")
