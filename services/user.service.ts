@@ -13,7 +13,7 @@ export const userService = {
   },
 
   createUser: async (data: any) => {
-    return await post("/user/register", data);
+    return await post("/admin/users", data);
   },
 
   bulkUploadUsers: async (users: any[]) => {

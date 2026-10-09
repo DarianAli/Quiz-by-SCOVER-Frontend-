@@ -83,7 +83,7 @@ export function CreateUserDialog({
         delete payload.parent_phone_number;
       }
 
-      await post("/user/register", payload);
+      await post("/admin/users", payload);
       toast.success(`User "${data.full_name}" registered successfully!`);
       reset();
       onClose();
