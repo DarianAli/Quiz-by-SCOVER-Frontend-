@@ -31,7 +31,7 @@ export const subjectService = {
     return await put(`/subject/update-data/${uuid}`, data)
   },
 
-  deleteSubject: async (uuid: string) => {
+  deleteSubject: async (uuid: string | number) => {
     return await drop(`/subject/delete-subject/${uuid}`)
   },
 

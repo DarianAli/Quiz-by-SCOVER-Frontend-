@@ -109,6 +109,7 @@ interface ResultData {
     xp_earned: number;
     rank: number;
     question_breakdown: QuestionBreakdown[];
+    retake_policy?: string;
 }
 
 export default function ResultPage() {

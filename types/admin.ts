@@ -65,6 +65,7 @@ export interface SubjectEntity {
 
 export interface SubjectProgressData {
   id: number;
+  uuid?: string;
   subject_name: string;
   completed_quizzes: number;
   annual_quiz_target: number;
